@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MEGA SLINGSHOT — Carnival of Questionable Safety</title>
+<style>
+  :root{ --red:#d8403f; --darkred:#a52a2a; --cream:#fff6e3; --yellow:#ffd23f; --navy:#1d2a44; --green:#3fae5a; }
+  *{box-sizing:border-box; user-select:none; -webkit-user-select:none;}
+  body{margin:0; background:linear-gradient(#4fb3ff,#bfe7ff 60%,#9fdcff); font-family:'Comic Sans MS','Chalkboard SE','Comic Neue',cursive; color:var(--navy); padding:10px; min-height:100vh;}
+  #wrap{display:flex; gap:14px; justify-content:center; align-items:flex-start; flex-wrap:wrap; max-width:1640px; margin:0 auto;}
+  .sidePanel{width:300px; flex:0 0 300px; display:flex; flex-direction:column; gap:10px;}
+  #gameCol{display:flex; flex-direction:column; gap:10px; flex:1 1 520px; min-width:320px; max-width:968px;}
+  #scene,#graph{width:100%; height:auto;}
+  @media (max-width:1100px){
+    body{padding:6px;}
+    #wrap{flex-direction:column; align-items:stretch; gap:10px;}
+    #gameCol{order:-1; max-width:100%; min-width:0;}
+    .sidePanel{width:100%; flex:none;}
+    #titleBar h1{font-size:clamp(17px,5.5vw,30px);}
+    #titleBar .tag{font-size:clamp(10px,3vw,13px);}
+    #statsBox{display:none;}   /* telemetry becomes an in-game overlay instead */
+  }
+  #titleBar{
+    background:repeating-linear-gradient(45deg, var(--red) 0 26px, #fff 26px 52px);
+    border:4px solid var(--navy); border-radius:14px; padding:6px 14px; text-align:center;
+    box-shadow:0 5px 0 rgba(0,0,0,.25);
+  }
+  #titleBar h1{
+    margin:0; font-size:30px; letter-spacing:2px; color:var(--yellow);
+    text-shadow:2px 2px 0 var(--navy), -2px 2px 0 var(--navy), 2px -2px 0 var(--navy), -2px -2px 0 var(--navy), 0 5px 6px rgba(0,0,0,.4);
+  }
+  #titleBar .tag{display:block; font-size:13px; color:#fff; text-shadow:1px 1px 0 var(--navy); margin-top:-2px;}
+  canvas{display:block; border:4px solid var(--navy); border-radius:14px; box-shadow:0 5px 0 rgba(0,0,0,.25);}
+  #scene{background:#cfeeff; cursor:grab; touch-action:none;}
+  #graph{background:#15203a;}
+  .box{background:var(--cream); border:4px solid var(--navy); border-radius:14px; padding:10px 12px; box-shadow:0 5px 0 rgba(0,0,0,.25);}
+  .box h2{
+    margin:-10px -12px 8px -12px; padding:5px 10px; font-size:16px; text-align:center; color:#fff;
+    background:var(--red); border-radius:9px 9px 0 0; border-bottom:4px solid var(--navy);
+    text-shadow:1px 1px 0 var(--navy); letter-spacing:1px;
+  }
+  .ctlRow{margin:8px 0;}
+  .ctlRow label{display:flex; justify-content:space-between; font-size:14px; font-weight:bold;}
+  .ctlRow .val{color:var(--darkred);}
+  input[type=range]{width:100%; accent-color:var(--red); height:22px; cursor:pointer;}
+  .beltRow{display:flex; align-items:center; justify-content:space-between; margin-top:10px; background:#ffe9b0; border:2px dashed var(--darkred); border-radius:10px; padding:6px 10px;}
+  .beltRow span{font-weight:bold; font-size:14px;}
+  .switch{position:relative; width:62px; height:30px; flex:none;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:#c33; border:3px solid var(--navy); border-radius:30px; transition:.2s;}
+  .slider:before{content:""; position:absolute; height:18px; width:18px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 2px 2px rgba(0,0,0,.3);}
+  .switch input:checked + .slider{background:var(--green);}
+  .switch input:checked + .slider:before{transform:translateX(31px);}
+  #beltState{font-size:12px;}
+  .statRow{display:flex; justify-content:space-between; font-size:14px; margin:4px 0; align-items:center;}
+  .statRow b{font-size:15px; color:var(--darkred); font-variant-numeric:tabular-nums;}
+  .bar{height:12px; background:#ddd; border:2px solid var(--navy); border-radius:8px; overflow:hidden; margin:2px 0 8px;}
+  .bar i{display:block; height:100%; width:0%; background:linear-gradient(90deg,#3fae5a,#ffd23f 60%,#d8403f); transition:width .08s linear;}
+  #ropeBar i{background:linear-gradient(90deg,#d8403f,#ffd23f 40%,#3fae5a);}
+  #resetBtn{
+    width:100%; padding:10px; font-family:inherit; font-size:18px; font-weight:bold; letter-spacing:1px;
+    color:#fff; background:var(--red); border:4px solid var(--navy); border-radius:14px; cursor:pointer;
+    box-shadow:0 5px 0 var(--navy); text-shadow:1px 1px 0 var(--navy);
+  }
+  #resetBtn:active{transform:translateY(4px); box-shadow:0 1px 0 var(--navy);}
+  #statusLine{font-size:13px; text-align:center; min-height:34px; font-weight:bold; color:var(--darkred);}
+  .disabledUI{opacity:.45; pointer-events:none; filter:grayscale(.6);}
+  #bodiesWrapInner{max-height:560px; overflow-y:auto;}
+  #bodies{border:none; box-shadow:none; border-radius:0; background:transparent;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="sidePanel" id="panelLeft">
+    <div class="box" id="controlsBox">
+      <h2>🎛️ RIDE CONTROLS</h2>
+      <div class="ctlRow"><label>Tower Height <span class="val" id="heightV">45 m</span></label>
+        <input type="range" id="heightSl" min="20" max="200" value="45" step="1"></div>
+      <div class="ctlRow"><label>Riders <span class="val" id="ridersV">2</span></label>
+        <input type="range" id="ridersSl" min="1" max="4" value="2" step="1"></div>
+      <div class="ctlRow"><label>Accident Chance <span class="val" id="accV">15%</span></label>
+        <input type="range" id="accSl" min="0" max="100" value="15" step="1"></div>
+      <div class="ctlRow"><label>Rope Strength <span class="val" id="ropeStrV">100%</span></label>
+        <input type="range" id="ropeSl" min="50" max="300" value="100" step="5"></div>
+      <div class="beltRow"><span>🔗 Seatbelts<br><small id="beltState">FASTENED</small></span>
+        <label class="switch"><input type="checkbox" id="beltTg" checked><span class="slider"></span></label></div>
+      <div class="beltRow"><span>🔊 Sound<br><small id="sndState">ON</small></span>
+        <label class="switch"><input type="checkbox" id="sndTg" checked><span class="slider"></span></label></div>
+    </div>
+    <button id="resetBtn">🔄 RESET RIDE</button>
+  </div>
+  <div id="gameCol">
+    <div id="titleBar">
+      <h1>🎪 MEGA SLINGSHOT 🎪</h1>
+      <span class="tag">The Carnival of Questionable Safety — “Probably fine!” — Mgmt</span>
+    </div>
+    <canvas id="scene" width="960" height="540"></canvas>
+    <canvas id="graph" width="960" height="170"></canvas>
+  </div>
+  <div class="sidePanel" id="panelRight">
+    <div class="box" id="statsBox">
+      <h2>📊 LIVE TELEMETRY</h2>
+      <div class="statRow"><span>Rope tension (worst)</span><b id="tensionV">0.0 kN</b></div>
+      <div class="bar"><i id="tensionBarI"></i></div>
+      <div class="statRow"><span>Pull-back</span><b id="pullV">0.0 m</b></div>
+      <div class="statRow"><span>Launch G (est.)</span><b id="predGV">—</b></div>
+      <div class="statRow"><span>Current G</span><b id="liveGV">1.0 g</b></div>
+      <div class="statRow"><span>MAX G</span><b id="maxGV">1.0 g</b></div>
+      <div class="statRow"><span>Snap risk</span><b id="riskV">0%</b></div>
+      <div class="statRow"><span>Rope health</span><b id="ropeV">100%</b></div>
+      <div class="bar" id="ropeBar"><i id="ropeBarI" style="width:100%"></i></div>
+      <div id="statusLine">Load your riders, then grab the pod and PULL!</div>
+    </div>
+    <div class="box">
+      <h2>🩺 RIDER CONDITION</h2>
+      <div id="bodiesWrapInner"><canvas id="bodies" width="272" height="280"></canvas></div>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ============================ UTILS & DOM ============================ */
+const el = id => document.getElementById(id);
+const clamp = (v,a,b)=> v<a?a : v>b?b : v;
+const lerp = (a,b,t)=> a+(b-a)*t;
+const rnd  = (a,b)=> a + Math.random()*(b-a);
+const dist = (x1,y1,x2,y2)=> Math.hypot(x2-x1,y2-y1);
+const TAU = Math.PI*2, GRAV = 9.81;
+
+const scene = el('scene'),  sctx = scene.getContext('2d');
+const graph = el('graph'),  gctx = graph.getContext('2d');
+const bodies= el('bodies'), bctx = bodies.getContext('2d');
+const ui = {
+  height: el('heightSl'), riders: el('ridersSl'), acc: el('accSl'), rope: el('ropeSl'), belts: el('beltTg'),
+  snd: el('sndTg'), sndState: el('sndState'),
+  heightV: el('heightV'), ridersV: el('ridersV'), accV: el('accV'), ropeStrV: el('ropeStrV'), beltState: el('beltState'),
+  tensionV: el('tensionV'), tensionBar: el('tensionBarI'), pullV: el('pullV'),
+  predGV: el('predGV'), liveGV: el('liveGV'), maxGV: el('maxGV'),
+  riskV: el('riskV'), ropeV: el('ropeV'), ropeBar: el('ropeBarI'),
+  statusLine: el('statusLine'), resetBtn: el('resetBtn'), controlsBox: el('controlsBox'),
+};
+
+/* ============================ CONFIG ============================ */
+const cfg = {
+  towerX: 1.5,        // towers are a front/back pair seen edge-on (side view)
+  podR: 1.6,          // pod radius (m)
+  baseMass: 250,      // empty pod kg
+  riderMass: 80,      // kg per rider
+  k: 3200,            // spring constant per cord (N/m) — violent, like the real thing
+  L0frac: 0.92,       // natural cord length fraction of latch distance
+  damp: 14,           // linear damping (N·s/m) — near-frictionless: symmetric swings
+  qdrag: 0.4,         // quadratic air drag (N·s²/m²)
+  brakeAt: 9.0,       // sim-seconds of free bouncing before the ride brake ramps in (~2 full cycles)
+  Tmax: 52000,        // rated max tension per cord at 100% rope strength (N) — beefy by default
+  riderDrag: 0.25,    // air drag on flailing ejected bodies (1/s) — low: they SAIL
+  ejectVmax: 36,      // cap so thrown bodies still land on screen (m/s)
+  timeScale: 3,       // playback speed of the flight phase (same physics, 3x faster)
+  platformY: 10,      // pod center height when latched — boarding deck is up at 10 m
+};
+const DECK = cfg.platformY - cfg.podR;   // walking surface of the boarding deck
+const NAMES   = ['Bob','Sue','Rex','Pam'];
+const SHIRTS  = ['#e05545','#3d7bd9','#3fae5a','#b65fd0'];
+const SCREAMS = ['AAAAAH!','WHEEEE!','MOMMY!!','I REGRET THIS!','WHY?!','HELP!!','😱','TOO FAST!'];
+// static decoration layout (computed once so nothing flickers)
+const DECOR={
+  clouds:[{s:1,y:52,sp:7,a:.92},{s:.7,y:98,sp:11,a:.7},{s:1.3,y:142,sp:5,a:.5},{s:.55,y:30,sp:15,a:.8}],
+  tufts:Array.from({length:46},()=>({f:Math.random(),h:3+Math.random()*5,ph:Math.random()*TAU})),
+  flowers:Array.from({length:16},()=>({f:Math.random(),g:Math.random(),c:['#ff6b9d','#ffd23f','#ff8c42','#c77dff'][Math.floor(Math.random()*4)]})),
+  balloons:Array.from({length:4},(_,i)=>({f:0.12+0.22*i+Math.random()*0.05,ph:Math.random()*900,c:['#d8403f','#3d7bd9','#ffd23f','#3fae5a'][i],prog:Math.random()*600,popped:false,popUntil:0})),
+  spect:Array.from({length:14},(_,i)=>({dx:i*10.5+Math.random()*5,c:SHIRTS[i%4],ph:Math.random()*TAU,sz:0.75+Math.random()*0.5,jumper:Math.random()<0.35})),
+};
+function fireworks(){
+  for(let b=0;b<3;b++){
+    const bx=rnd(-0.4,0.4)*Math.max(S.H,55), by=Math.max(S.H,55)*rnd(0.6,0.95);
+    const col=['#ffd23f','#ff6b9d','#37d6e8','#9fe87a'][b%4];
+    for(let i=0;i<24;i++){ const a=i/24*TAU, sp=rnd(6,14);
+      S.particles.push({type:'spark',x:bx,y:by,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rnd(.5,1.1),rot:0,vr:0,color:col});
+    }
+  }
+}
+
+/* ============================ STATE ============================ */
+let S = null, VIEW = {s:5,ox:0,oy:0};
+
+function makeRiders(n, belted){
+  const arr=[];
+  for(let i=0;i<n;i++){
+    arr.push({
+      name:NAMES[i], shirt:SHIRTS[i], seat:i,
+      hairC:['#5a3b1e','#2c2c2c','#c98a2e','#8a4a22'][i],
+      tol: 9 + Math.random()*4,          // personal G tolerance (neck)
+      belted, mode:'boarding',           // boarding | seated | flying | landed | taken
+      boardDelay: i*0.13, pathD:0, walkPh:Math.random()*6,
+      x:0,y:0,vx:0,vy:0,rot:0,vr:0,
+      face:'happy',                      // happy|scared|pain|dizzy|ko|dead
+      dmg:{head:0,neck:0,torso:0,arms:0,legs:0}, // 0 ok,1 hurt,2 broken,3 detached
+      status:'Ready to ride!',
+      armWave:Math.random()*TAU,
+    });
+  }
+  return arr;
+}
+
+function resetGame(){
+  const H = +ui.height.value, n = +ui.riders.value;
+  S = {
+    phase:'boarding', t:0, tRelease:0, H, nRiders:n,
+    bo:0, bov:0, boardT:0,
+    trail:[], bannerT:0, barT:0, barDone:false,
+    accBase: +ui.acc.value/100,
+    belts: ui.belts.checked,
+    pod:{x:0, y:cfg.platformY, vx:0, vy:0},
+    prevVy:0,
+    mass: cfg.baseMass + cfg.riderMass*n,
+    Tmax: cfg.Tmax * (+ui.rope.value/100),
+    L0: cfg.L0frac * dist(0,cfg.platformY,cfg.towerX,H),
+    tension:[0,0], feltG:1, maxG:1, maxTensionRatio:0, fray:0,
+    snapped:[false,false], snapWave:[0,0], secondSnapAt:null, podRot:0, podVr:0,
+    plan:null, ejected:false, peakSp:0, peakVx:0, peakVy:0, bounceCount:0, prevVxSign:0, ejectQueue:[],
+    series:[], seriesT0:0,
+    riders: makeRiders(n, ui.belts.checked),
+    particles:[], stains:[], texts:[],
+    settleTimer:0, banner:'', bannerSub:'',
+    confettiDone:false, ambulance:null, shake:0,
+    ferris:0, resultDone:false,
+  };
+  bodies.height = n*148 + 6;
+  DECOR.spect.forEach(sp=>sp.alive=true);   // fresh crowd, blissfully unaware
+  setControlsEnabled(true);
+  updateBanner('boarding');
+}
+
+/* -------- spectator crushing: falling bodies & debris flatten the crowd -------- */
+const SPECT_X0=205;   // crowd fence position (screen px)
+function spectWorldX(sp){ return S2WX(SPECT_X0+sp.dx); }
+function crushRadius(r){
+  // how much of them is left determines the splat footprint:
+  // full body ≈2.4 m, missing limbs shrink it, lone torso ≈0.9 m
+  const limbs=(r.dmg.legs<3?1:0)+(r.dmg.arms<3?1:0)+(r.dmg.head<3?0.5:0);
+  return 0.9+limbs*0.6;
+}
+function crushSpectators(x,rad){
+  let n=0;
+  for(const sp of DECOR.spect){
+    if(sp.alive===false) continue;
+    const wx=spectWorldX(sp);
+    if(Math.abs(wx-x)<rad){
+      sp.alive=false; n++;
+      spawnBlood(wx,0.6,10);
+      S.stains.push({x:wx,y:0.1,r:rnd(0.8,1.3)});
+      addText(wx,2.2,pick(['SQUISH!','CRUNCH!','OH NO.','☠️']),'#ff4444',15);
+    }
+  }
+  if(n>0){
+    S.crushed=(S.crushed||0)+n;
+    SFX.splat(); S.shake=Math.max(S.shake,5);
+    if(n>1) addText(x,5,n+' BYSTANDERS DOWN!!','#ff2222',18);
+  }
+  return n;
+}
+
+/* -------- boarding animation: walk the ramp, hop in, pod bobs -------- */
+function boardPos(d){
+  const L1=2, L2=Math.hypot(9.5,DECK), L3=1.8;   // queue → ramp → deck
+  if(d<L1) return [14-d, 0, false];
+  if(d<L1+L2){ const f=(d-L1)/L2; return [12-9.5*f, DECK*f, false]; }
+  if(d<L1+L2+L3) return [2.5-(d-L1-L2), DECK, false];
+  return [0.7, DECK, true];
+}
+function stepBoarding(dt){
+  // pod bobs on its latch spring (reacts to each boarder's weight)
+  S.bov += (-S.bo*30 - S.bov*6)*dt; S.bo += S.bov*dt;
+  S.pod.y = cfg.platformY + S.bo;
+  if(S.phase!=='boarding') return;
+  S.boardT += dt;
+  let done=true;
+  for(const r of S.riders){
+    if(r.mode!=='boarding') continue;
+    done=false;
+    if(S.boardT < r.boardDelay){ r.x=14+r.seat*1.3; r.y=0; continue; }
+    r.pathD += dt*22; r.walkPh += dt*22;
+    const p=boardPos(r.pathD);
+    r.x=p[0]; r.y=p[1];
+    if(p[2]){ r.mode='seated'; S.bov-=1.5; SFX.thud(2.5); addText(S.pod.x,S.pod.y+2.5,'*hup*','#fff',12); }
+  }
+  if(done){ S.phase='idle'; updateBanner('idle'); }
+}
+
+function setControlsEnabled(on){
+  ui.controlsBox.classList.toggle('disabledUI', !on);
+}
+
+/* ============================ CAMERA ============================ */
+function computeView(){
+  const H=S.H, cw=scene.width, ch=scene.height;
+  const Heff=Math.max(H,55);   // fixed zoom below 55 m → taller towers really LOOK taller
+  // constant 68 m of sky above the tower (not proportional!) so the tower keeps growing on screen
+  const wx0=-(0.74*Heff+14), wx1=0.74*Heff+14, top=Heff+68;
+  const s = Math.min(cw/(wx1-wx0), (ch-26)/top);
+  const ox = cw/2 - s*(wx0+wx1)/2;
+  const oy = ch - 22;
+  VIEW={s,ox,oy};
+}
+const W2SX = x => VIEW.ox + x*VIEW.s;
+const W2SY = y => VIEW.oy - y*VIEW.s;
+const S2WX = X => (X-VIEW.ox)/VIEW.s;
+const S2WY = Y => (VIEW.oy-Y)/VIEW.s;
+function podPxR(){ return Math.max(cfg.podR*VIEW.s, 22); }
+
+/* ============================ INPUT ============================ */
+let dragging=false;
+function canvasPos(e){
+  const r=scene.getBoundingClientRect();
+  return [ (e.clientX-r.left)*scene.width/r.width, (e.clientY-r.top)*scene.height/r.height ];
+}
+scene.addEventListener('pointerdown', e=>{
+  if(S.phase!=='idle') return;
+  const [X,Y]=canvasPos(e);
+  const px=W2SX(S.pod.x), py=W2SY(S.pod.y);
+  if(Math.hypot(X-px,Y-py) < podPxR()+14){
+    dragging=true; S.phase='dragging'; S.maxTensionRatio=0;
+    SFX.grab();
+    scene.setPointerCapture(e.pointerId);
+    scene.style.cursor='grabbing';
+    setControlsEnabled(false);
+    dragTo(e);
+  }
+});
+scene.addEventListener('pointermove', e=>{ if(dragging) dragTo(e); });
+scene.addEventListener('pointerup',   e=>{ if(dragging){ dragging=false; scene.style.cursor='grab'; release(); } });
+scene.addEventListener('pointercancel', e=>{ if(dragging){ dragging=false; release(); } });
+function dragTo(e){
+  const [X,Y]=canvasPos(e);
+  const maxPull=Math.min(0.95*S.H, 0.74*Math.max(S.H,55)+8); // pull back EITHER way
+  S.pod.x = clamp(S2WX(X), -maxPull, maxPull);
+  S.pod.y = clamp(S2WY(Y), cfg.podR*0.8, 0.45*S.H);
+  S.pod.vx=S.pod.vy=0;
+}
+ui.resetBtn.addEventListener('click', resetGame);
+const RESETTABLE=['idle','boarding','done'];   // phases where slider changes rebuild the ride
+for(const id of ['heightSl','ridersSl','accSl','ropeSl']){
+  el(id).addEventListener('input', ()=>{ refreshLabels(); if(RESETTABLE.includes(S.phase)) resetGame(); });
+}
+ui.belts.addEventListener('change', ()=>{ refreshLabels(); if(RESETTABLE.includes(S.phase)) resetGame(); });
+function refreshLabels(){
+  ui.heightV.textContent = ui.height.value+' m';
+  ui.ridersV.textContent = ui.riders.value;
+  ui.accV.textContent    = ui.acc.value+'%';
+  ui.ropeStrV.textContent= ui.rope.value+'%';
+  ui.beltState.textContent = ui.belts.checked ? 'FASTENED' : '⚠️ NOPE!';
+  ui.beltState.style.color = ui.belts.checked ? '#1d7a36' : '#c00';
+  ui.sndState.textContent = ui.snd.checked ? 'ON' : 'OFF';
+}
+ui.snd.addEventListener('change', refreshLabels);
+
+/* ============================ SOUND (procedural WebAudio) ============================ */
+let AC=null, masterG=null;
+function audioCtx(){
+  if(!ui.snd.checked) return null;
+  try{
+    if(!AC){
+      const Ctor=(typeof window!=='undefined')&&(window.AudioContext||window.webkitAudioContext);
+      if(!Ctor) return null;
+      AC=new Ctor(); masterG=AC.createGain(); masterG.gain.value=0.4; masterG.connect(AC.destination);
+    }
+    if(AC.state==='suspended') AC.resume();
+    return AC;
+  }catch(e){ return null; }
+}
+function tone(o){ const ac=audioCtx(); if(!ac) return;
+  const t=ac.currentTime+(o.at||0);
+  const osc=ac.createOscillator(); osc.type=o.type||'sine';
+  osc.frequency.setValueAtTime(o.f0,t);
+  if(o.f1) osc.frequency.exponentialRampToValueAtTime(Math.max(o.f1,20),t+o.dur);
+  const g=ac.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(o.vol||0.2,t+(o.attack||0.012));
+  g.gain.exponentialRampToValueAtTime(0.0001,t+o.dur);
+  osc.connect(g); g.connect(masterG);
+  if(o.vib){ const l=ac.createOscillator(); l.frequency.value=o.vib;
+    const lg=ac.createGain(); lg.gain.value=o.vibAmt||30; l.connect(lg); lg.connect(osc.frequency);
+    l.start(t); l.stop(t+o.dur+0.05); }
+  osc.start(t); osc.stop(t+o.dur+0.05);
+}
+function noiseBurst(o){ const ac=audioCtx(); if(!ac) return;
+  const t=ac.currentTime+(o.at||0), len=Math.max(64,Math.floor(ac.sampleRate*o.dur));
+  const buf=ac.createBuffer(1,len,ac.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+  const src=ac.createBufferSource(); src.buffer=buf;
+  const f=ac.createBiquadFilter(); f.type=o.ftype||'bandpass';
+  f.frequency.setValueAtTime(o.f0||800,t);
+  if(o.f1) f.frequency.exponentialRampToValueAtTime(o.f1,t+o.dur);
+  f.Q.value=o.q||1;
+  const g=ac.createGain(); g.gain.setValueAtTime(o.vol||0.3,t);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+o.dur);
+  src.connect(f); f.connect(g); g.connect(masterG);
+  src.start(t);
+}
+const SFX={
+  grab(){ tone({type:'square',f0:200,f1:260,dur:0.06,vol:0.1}); },
+  creak(r){ noiseBurst({dur:0.1,f0:220+r*500,q:7,vol:0.04+r*0.1}); },
+  launch(){ noiseBurst({dur:0.5,f0:300,f1:2200,vol:0.28,ftype:'highpass'}); tone({type:'triangle',f0:150,f1:50,dur:0.4,vol:0.34}); },
+  snap(){ noiseBurst({dur:0.12,f0:1600,q:0.7,vol:0.5,ftype:'highpass'}); tone({type:'sawtooth',f0:650,f1:80,dur:0.28,vol:0.3}); },
+  scream(){ tone({type:'sawtooth',f0:rnd(750,1050),f1:rnd(240,380),dur:rnd(0.5,0.85),vol:0.11,vib:7,vibAmt:45}); },
+  splat(){ noiseBurst({dur:0.2,f0:450,f1:80,vol:0.42,ftype:'lowpass'}); tone({f0:85,f1:32,dur:0.25,vol:0.42}); },
+  thud(v){ tone({f0:85,f1:32,dur:0.18,vol:Math.min(0.45,0.08+v*0.025)}); },
+  crack(){ noiseBurst({dur:0.06,f0:2600,q:1.2,vol:0.3,ftype:'highpass'}); tone({type:'square',f0:300,f1:120,dur:0.07,vol:0.12}); },
+  cheer(){ noiseBurst({dur:1.3,f0:1100,q:0.4,vol:0.14}); [523,659,784,1047].forEach((f,i)=>tone({type:'triangle',f0:f,dur:0.2,vol:0.16,at:0.12+i*0.13})); },
+  siren(){ for(let i=0;i<8;i++){ tone({type:'square',f0:690,dur:0.16,vol:0.06,at:i*0.34}); tone({type:'square',f0:940,dur:0.16,vol:0.06,at:0.17+i*0.34}); } },
+  pop(){ noiseBurst({dur:0.06,f0:2000,q:1,vol:0.35,ftype:'highpass'}); tone({type:'square',f0:420,f1:140,dur:0.08,vol:0.14}); },
+};
+
+/* ============================ PHYSICS ============================ */
+function cordForce(px,py){
+  const tops=[[-cfg.towerX,S.H],[cfg.towerX,S.H]];
+  let fx=0, fy=0; const T=[0,0];
+  for(let i=0;i<2;i++){
+    if(S.snapped[i]) continue;
+    const dx=tops[i][0]-px, dy=tops[i][1]-py, d=Math.hypot(dx,dy);
+    const st=d-S.L0;
+    if(st>0){ const t=cfg.k*st; T[i]=t; fx+=t*dx/d; fy+=t*dy/d; }
+  }
+  return {fx,fy,T};
+}
+
+function riskEstimate(ratio){
+  const base=S.accBase;
+  let p = base*0.25*clamp(ratio+0.3,0.3,1);   // slider matters even on safe pulls
+  if(ratio>1) p += (0.15+0.6*base)*(1-Math.exp(-4*(ratio-1)));
+  return clamp(p,0,0.92);
+}
+
+function release(){
+  const ratio=S.maxTensionRatio;
+  const pSnap = riskEstimate(ratio);
+  const pBelt = S.belts ? S.accBase*0.30 : 0;
+  S.plan = {
+    snap: Math.random()<pSnap,
+    snapSide: Math.max(S.tension[0],0) > Math.max(S.tension[1],0) ? 0 : 1,
+    snapT: 0.05 + Math.random()*0.35,
+    beltFail: Math.random()<pBelt,
+    victim: Math.floor(Math.random()*S.nRiders),
+    beltDone:false, apexCount:0,
+  };
+  S.phase='flying'; S.tRelease=S.t; S.prevVy=1; S.settleTimer=0;
+  S.trail.length=0;
+  spawnRing(S.pod.x,S.pod.y,7);   // launch shockwave
+  SFX.launch();
+  for(const r of S.riders) if(r.mode==='seated') r.face='scared';
+  addText(S.pod.x,S.pod.y+3, SCREAMS[Math.floor(Math.random()*SCREAMS.length)], '#fff', 18);
+  updateBanner('flying');
+}
+
+function doSnap(i){
+  if(S.snapped[i]) return;
+  S.snapped[i]=true; S.snapWave[i]=1.4;
+  SFX.snap();
+  S.shake=Math.max(S.shake,10);
+  addText((i? cfg.towerX:-cfg.towerX)*0.5, S.H*0.7, '💥 SNAP!!', '#ff2222', 26);
+  for(let j=0;j<10;j++) S.particles.push({type:'spark',x:S.pod.x,y:S.pod.y,vx:rnd(-8,8),vy:rnd(2,12),life:rnd(.3,.8),rot:0,vr:0,color:'#ffd23f'});
+  const other=1-i;
+  if(!S.snapped[other]){
+    updateBanner('snap');
+    // shock load: decent odds the surviving rope lets go moments later
+    if(Math.random() < 0.80) S.secondSnapAt = S.t + rnd(0.15,0.7);   // shock load: 80% cascade
+  } else {
+    // BOTH gone — the whole seat is now a projectile
+    S.secondSnapAt=null;
+    S.podVr=rnd(3,7)*(Math.random()<0.5?-1:1);
+    S.shake=Math.max(S.shake,16);
+    addText(S.pod.x,S.pod.y+5,'TOTAL SEPARATION!!','#ff2222',24);
+    for(const r of S.riders) if(r.mode==='seated') r.face='scared';
+    updateBanner('doubleSnap');
+  }
+}
+
+function physStep(dt){
+  const p=S.pod;
+  const {fx,fy,T}=cordForce(p.x,p.y);
+  S.tension=T;
+  const sp=Math.hypot(p.vx,p.vy);
+  const tf=S.t-S.tRelease;
+  // operator brakes after the free-bounce phase — and HARD once the first few bounces are done
+  let brake = tf>cfg.brakeAt ? Math.min(14, 1+(tf-cfg.brakeAt)*2.6) : 1;
+  if(S.bounceCount>=4) brake=Math.max(brake, 1+(S.bounceCount-3)*4);
+  const cd=(cfg.damp*brake+cfg.qdrag*sp);
+  const fdx=-cd*p.vx, fdy=-cd*p.vy;
+  const ax=(fx+fdx)/S.mass, ay=(fy+fdy)/S.mass - GRAV;
+  p.vx+=ax*dt; p.vy+=ay*dt;
+  p.x+=p.vx*dt; p.y+=p.vy*dt;
+  S.feltG = Math.hypot(fx+fdx, fy+fdy)/S.mass/GRAV;
+
+  // ground collision for pod
+  // free-flying seat tumbles
+  if(S.snapped[0]&&S.snapped[1]){ S.podRot+=S.podVr*dt; }
+  if(p.y<cfg.podR && p.vy<0){
+    const impact=-p.vy;
+    p.y=cfg.podR; p.vy=impact*0.32; p.vx*=0.92;  // keep horizontal speed through a ground scrape
+    S.podVr*=0.6;
+    if(impact>4){
+      const spikeG=impact*0.9;
+      S.feltG=Math.max(S.feltG,spikeG);
+      S.shake=Math.max(S.shake,impact);
+      SFX.thud(impact);
+      groundDust(p.x); spawnChunks(p.x,Math.min(10,Math.round(impact))); spawnRing(p.x,1,Math.min(6,impact*0.5));
+      crushSpectators(p.x, podPxR()/VIEW.s*0.9);   // a falling POD flattens a wide swath
+      applyGDamage(spikeG);
+      if(impact>6) addText(p.x,p.y+3,'💥 OOF!','#fff',20);
+    }
+  }
+  // overload fray & cascade snap
+  const ratio=Math.max(T[0],T[1])/S.Tmax;
+  S.maxTensionRatio=Math.max(S.maxTensionRatio,ratio);
+  if(ratio>1) S.fray=Math.min(1,S.fray+(ratio-1)*dt*2.5);
+  if(S.fray>=1 || ratio>1.45) doSnap(T[0]>T[1]?0:1);
+  S.maxG=Math.max(S.maxG,S.feltG);
+  applyGDamage(S.feltG);   // per-substep so brief spikes still hurt
+}
+
+function tick(dt){
+  const podX0=S.pod.x, podY0=S.pod.y;   // pod path start (for collision interpolation)
+  S.t+=dt; S.ferris+=dt*0.25; S.bannerT+=dt;
+  S.shake=Math.max(0,S.shake-dt*22);
+  for(let i=0;i<2;i++) if(S.snapWave[i]>0) S.snapWave[i]=Math.max(0,S.snapWave[i]-dt*0.5);
+
+  if(S.phase==='dragging'){
+    const {fx,fy,T}=cordForce(S.pod.x,S.pod.y);
+    S.tension=T;
+    const ratio=Math.max(T[0],T[1])/S.Tmax;
+    S.maxTensionRatio=Math.max(S.maxTensionRatio,ratio);
+    if(ratio>1){
+      S.fray=Math.min(1,S.fray+(ratio-1)*dt*1.6);
+      if(Math.random()<dt*2) addText(S.pod.x+rnd(-3,3),S.pod.y+rnd(2,5),'crrrk...','#a52a2a',13);
+      if(Math.random()<dt*5) SFX.creak(ratio);
+      if(S.fray>=1 || ratio>1.7){ doSnap(T[0]>T[1]?0:1); dragging=false; release(); }
+    }
+    S.feltG=1;
+    if(ratio>0.3 && ratio<=1 && Math.random()<dt*3) SFX.creak(ratio*0.7);
+    const launchG=Math.hypot(fx,fy)/S.mass/GRAV;
+    pushSeries(launchG, Math.max(T[0],T[1])/1000);
+    for(const r of S.riders) r.face = ratio>0.5 ? 'scared' : 'happy';
+    updateBanner('dragging');
+  }
+  else if(S.phase==='flying'){
+    const sub=Math.max(1,Math.ceil(dt/(1/240)));
+    for(let i=0;i<sub;i++) physStep(dt/sub);
+    pushSeries(S.feltG, Math.max(S.tension[0],S.tension[1])/1000);
+    handleAccidents(dt);
+    checkSettle(dt);
+    S.prevVy=S.pod.vy;
+  }
+  else if(S.phase==='awaitBodies'){
+    S.feltG=1;
+    if(!S.riders.some(r=>r.mode==='flying')) finishRide();
+  }
+  else if(S.phase==='winch'){
+    const p=S.pod, tx=0, ty=cfg.platformY;
+    const d=dist(p.x,p.y,tx,ty), v=14*dt;
+    if(d<v||d<0.1){ p.x=tx;p.y=ty;
+      if(S.riders.some(r=>r.mode==='flying')) S.phase='awaitBodies';
+      else finishRide();
+    }
+    else { p.x+=(tx-p.x)/d*14*dt; p.y+=(ty-p.y)/d*14*dt; }
+    S.feltG=1; pushSeries(1, Math.max(S.tension[0],S.tension[1])/1000);
+  }
+  else if(S.phase==='idle'||S.phase==='boarding'){
+    S.feltG=1;
+    stepBoarding(dt);
+    if(S.phase==='idle'){     // harness bar clunks down once everyone is in
+      S.barT=Math.min(1,S.barT+dt*3.2);
+      if(S.barT>=1 && !S.barDone){ S.barDone=true; SFX.thud(2); addText(S.pod.x,S.pod.y+2.5,'*clunk*','#fff',12); }
+    }
+  }
+  // pod motion trail
+  if(S.phase==='flying'){
+    const spd=Math.hypot(S.pod.vx,S.pod.vy);
+    if(spd>8){ S.trail.push({x:S.pod.x,y:S.pod.y}); if(S.trail.length>16) S.trail.shift(); }
+    else if(S.trail.length) S.trail.shift();
+  } else if(S.trail.length) S.trail.shift();
+
+  // riders sub-step at ~125 Hz so fast bodies can't tunnel through the pod between frames;
+  // the pod's position is interpolated along its path through the frame
+  {
+    const n=Math.max(1,Math.ceil(dt/0.008));
+    for(let i=0;i<n;i++){
+      const f=(i+1)/n;
+      stepRiders(dt/n, lerp(podX0,S.pod.x,f), lerp(podY0,S.pod.y,f));
+    }
+  }
+  stepBalloons(dt);
+  stepParticles(dt);
+  stepAmbulance(dt);
+}
+
+/* -------- balloons drift up; flying bodies pop them -------- */
+function stepBalloons(dt){
+  for(const b of DECOR.balloons){
+    if(b.popped){ if(S.t>b.popUntil){ b.popped=false; b.prog=-rnd(20,200); } continue; }
+    b.prog+=dt*16;
+    if(b.prog>scene.height+150) b.prog=-20;
+    const bx=scene.width*b.f+Math.sin(S.t+b.ph)*14;
+    const by=scene.height-b.prog+20;
+    const wx=S2WX(bx), wy=S2WY(by);
+    if(wy<1) continue;
+    // popped by the pod, a flying body, or a stray limb
+    let hit = Math.hypot(S.pod.x-wx,S.pod.y-wy) < podPxR()/VIEW.s+1.2;
+    if(!hit) for(const r of S.riders){
+      if(r.mode==='flying' && Math.hypot(r.x-wx,r.y-wy) < 16/VIEW.s+1.2){ hit=true; break; }
+    }
+    if(!hit) for(const p of S.particles){
+      if(p.type==='limb' && !p.rest && Math.hypot(p.x-wx,p.y-wy)<2){ hit=true; break; }
+    }
+    if(hit){
+      b.popped=true; b.popUntil=S.t+rnd(2.5,5);
+      addText(wx,wy,'POP! 🎈','#fff',15);
+      SFX.pop();
+      for(let k=0;k<9;k++) S.particles.push({type:'spark',x:wx,y:wy,vx:rnd(-7,7),vy:rnd(-3,8),life:rnd(.3,.6),rot:0,vr:0,color:b.c});
+    }
+  }
+}
+
+function pushSeries(g,kN){
+  S.series.push({t:S.t,g,kN});
+  while(S.series.length && S.series[0].t < S.t-12) S.series.shift();
+}
+
+/* -------- accidents -------- */
+function handleAccidents(dt){
+  const tf=S.t-S.tRelease, plan=S.plan;
+  // planned rope snap (under launch load)
+  if(plan.snap && tf>plan.snapT && !S.snapped[plan.snapSide]) doSnap(plan.snapSide);
+  // shock-load cascade: the second rope gives up
+  if(S.secondSnapAt && S.t>=S.secondSnapAt) doSnap(S.snapped[0]?1:0);
+  // track velocity peak & direction reversals (bounces)
+  const sp=Math.hypot(S.pod.vx,S.pod.vy);
+  if(sp>S.peakSp){ S.peakSp=sp; S.peakVx=S.pod.vx; S.peakVy=S.pod.vy; }
+  const vxs=Math.abs(S.pod.vx)>2 ? Math.sign(S.pod.vx) : 0;
+  if(vxs!==0 && S.prevVxSign!==0 && vxs!==S.prevVxSign) S.bounceCount++;
+  if(vxs!==0) S.prevVxSign=vxs;
+  // NO SEATBELTS: bodies stay pressed into the seat while accelerating —
+  // they fly off the moment the seat starts moving BACKWARDS, carrying their peak speed
+  const reversing = (S.pod.vx*S.peakVx + S.pod.vy*S.peakVy) < 0 || S.bounceCount>=1;
+  if(!S.belts && !S.ejected && tf>0.1 && S.peakSp>4 && reversing){
+    S.ejected=true;
+    const loose=S.riders.filter(r=>r.mode==='seated');
+    loose.forEach((r,i)=> S.ejectQueue.push({rider:r, at:S.t+i*0.09}));
+    updateBanner('ejected');
+  }
+  // staggered ejections so each rider visibly flies off
+  for(let i=S.ejectQueue.length-1;i>=0;i--){
+    if(S.t>=S.ejectQueue[i].at){
+      const r=S.ejectQueue[i].rider;
+      if(r.mode==='seated') ejectRiders([r]);
+      S.ejectQueue.splice(i,1);
+    }
+  }
+  // belt failure accident: one belt pops on the 2nd bounce
+  if(S.belts && plan.beltFail && !plan.beltDone && S.bounceCount>=2){
+    plan.beltDone=true;
+    const v=S.riders[plan.victim];
+    if(v && v.mode==='seated'){
+      addText(S.pod.x,S.pod.y+3,'*click* 😨','#fff',18);
+      ejectRiders([v]);
+      updateBanner('beltfail');
+    }
+  }
+}
+
+function ejectRiders(list){
+  const n=S.riders.length;
+  for(const r of list){
+    r.mode='flying';
+    r.x=S.pod.x+(r.seat-(n-1)/2)*1.2;
+    r.y=S.pod.y+1.2;
+    // they keep the speed they had when the seat stopped pushing them (peak), not the pod's current speed
+    const bvx = S.peakSp>4 ? S.peakVx : S.pod.vx;
+    const bvy = S.peakSp>4 ? S.peakVy : S.pod.vy;
+    r.vx=bvx*1.1+rnd(-2,2);
+    r.vy=Math.abs(bvy)*0.6+rnd(3,7);   // launched up & onward off the reversing pod
+    // cap speed so the splat stays on screen (range ≈ 0.07·v² with drag)
+    const visHalf=scene.width/(2*VIEW.s);
+    const room = r.vx<0 ? (r.x+visHalf-14) : (visHalf-14-r.x);
+    const vcap = Math.min(cfg.ejectVmax, Math.sqrt(Math.max(room,12)/0.09));
+    const ev=Math.hypot(r.vx,r.vy);
+    if(ev>vcap){ r.vx*=vcap/ev; r.vy*=vcap/ev; }
+    r.vx+=rnd(-3,3);                                  // trajectories spread apart
+    r.rot=0; r.vr=-Math.sign(r.vx||1)*rnd(4,10);      // tumbling front-flips
+    r.face='scared';
+    r.ejT=S.t;
+    r.scream=pick(SCREAMS);   // one label that follows them through the air
+    r.status='AIRBORNE!!';
+  }
+}
+
+/* -------- G damage to seated riders -------- */
+function shedLimb(r,kind){
+  // a limb tears loose and is flung out of the pod at speed
+  S.particles.push({type:'limb',kind,shirt:r.shirt,x:S.pod.x+rnd(-1,1),y:S.pod.y+1,
+    vx:S.pod.vx*1.1+rnd(-4,4), vy:S.pod.vy*1.1+rnd(2,8), rot:rnd(0,TAU), vr:rnd(-14,14), life:99, rest:false});
+  spawnBlood(S.pod.x,S.pod.y+1.5,4);
+}
+function applyGDamage(g){
+  if(S.phase!=='flying') return;
+  for(const r of S.riders){
+    if(r.mode!=='seated') continue;
+    if(g>r.tol*3 && r.face!=='dead'){
+      r.dmg.neck=3; r.dmg.torso=3; r.dmg.arms=3; r.dmg.legs=3;
+      shedLimb(r,'arm'); shedLimb(r,'arm'); shedLimb(r,'leg'); shedLimb(r,'leg');
+      addText(S.pod.x,S.pod.y+6,'LIMBS EVERYWHERE!!','#ff2222',18);
+      r.face='dead';
+      r.status=pick(['Liquefied at '+g.toFixed(0)+'g ☠️','Internal organs filed for divorce at '+g.toFixed(0)+'g ☠️','Exceeded the warranty of the human body ☠️']);
+      spawnBlood(S.pod.x,S.pod.y+2,14);
+      SFX.splat();
+      addText(S.pod.x,S.pod.y+4,'SQUISH.','#ff2222',20);
+    } else if(g>r.tol*1.35 && r.dmg.torso<2){
+      r.dmg.neck=2; r.dmg.torso=2; r.dmg.arms=Math.max(r.dmg.arms,1);
+      if(Math.random()<0.5 && r.dmg.arms<3){   // sometimes an arm just leaves
+        r.dmg.arms=3; shedLimb(r,'arm');
+        addText(S.pod.x,S.pod.y+6,'AN ARM FLEW OFF!!','#ff4444',16);
+      }
+      r.face='ko';
+      r.status=pick(['G-LOC at '+g.toFixed(0)+'g — spine compressed, out cold!','Blacked out, neck crushed, ribs caved!','Unconscious — vertebrae played like an accordion!']);
+      spawnBlood(S.pod.x,S.pod.y+2,6);
+      addText(S.pod.x,S.pod.y+4,'CRUNCH.','#ff4444',18);
+    } else if(g>r.tol && r.dmg.neck<2){
+      r.dmg.neck=2; r.face='pain';
+      if(Math.random()<0.2 && r.dmg.arms<3){
+        r.dmg.arms=3; shedLimb(r,'arm');
+        addText(S.pod.x,S.pod.y+6,'THERE GOES AN ARM!','#ff4444',15);
+      }
+      r.status=pick(['Neck snapped like celery at '+g.toFixed(0)+'g!!','Broken neck — heard it three rows back!!','C-spine: catastrophically rearranged!!']);
+      spawnBlood(S.pod.x,S.pod.y+2,3);
+      SFX.crack();
+      addText(S.pod.x,S.pod.y+4,'*CRACK*','#ff4444',16);
+    } else if(g>r.tol*0.78 && r.dmg.neck<1){
+      r.dmg.neck=1; r.face='pain';
+      r.status=pick(['Whiplash! Neck like a Pez dispenser','Savage whiplash — chiropractor jackpot','Neck strained, regrets doubled']);
+      addText(S.pod.x,S.pod.y+4,'MY NECK!','#ffdddd',14);
+    }
+  }
+}
+
+/* -------- flying / landed riders -------- */
+function stepRiders(dt,podX,podY){
+  if(podX===undefined){ podX=S.pod.x; podY=S.pod.y; }
+  for(const r of S.riders){
+    r.armWave+=dt*(r.mode==='flying'?16:6);   // panic flailing is FAST
+    if(r.mode!=='flying') continue;
+    r.vy-=GRAV*dt;
+    const dragF=cfg.riderDrag*dt;             // flailing bodies have lots of drag
+    r.vx-=r.vx*dragF; r.vy-=r.vy*dragF;
+    r.x+=r.vx*dt; r.y+=r.vy*dt; r.rot+=r.vr*dt;
+    if(Math.hypot(r.vx,r.vy)>8 && Math.random()<dt*30)
+      S.particles.push({type:'dust',x:r.x,y:r.y,vx:0,vy:0,life:0.35,rot:0,vr:0});
+    // ground contact
+    if(r.y<=0.5){
+      r.y=0.5;
+      if(r.vy<-4){            // hard impact: damage + bounce, spin bleeds off
+        const v=Math.hypot(r.vx,r.vy);
+        crushSpectators(r.x,crushRadius(r));   // anyone underneath has a bad day
+        landingDamage(r,v);
+        r.vy=-r.vy*0.25; r.vx*=0.6; r.vr*=0.45;
+        S.shake=Math.max(S.shake,Math.min(v*0.5,8));
+      } else {                // skidding along the ground in a dust cloud
+        r.vy=0;
+        r.vx-=r.vx*Math.min(1,3.5*dt);
+        const lay=Math.PI/2*(Math.sin(r.rot)>=0?1:-1);
+        r.rot+=(lay-r.rot)*Math.min(1,dt*7); r.vr=0;
+        if(Math.abs(r.vx)>3 && Math.random()<dt*22)
+          S.particles.push({type:'dust',x:r.x,y:0.4,vx:0,vy:rnd(0.5,2),life:0.4,rot:0,vr:0});
+        if(Math.abs(r.vx)<0.4){
+          r.mode='landed'; r.vx=0; r.rot=lay;
+          if(!r.landLvl) landingDamage(r,3);
+        }
+      }
+    }
+  }
+  collideRiders(podX,podY);
+}
+
+/* -------- mid-air collisions: rider↔rider and rider↔pod -------- */
+function collideRiders(podX,podY){
+  if(podX===undefined){ podX=S.pod.x; podY=S.pod.y; }
+  const fly=S.riders.filter(r=>r.mode==='flying');
+  // collision sizes match what's DRAWN (pod renders at a minimum pixel size when zoomed out)
+  const drawnPodR=podPxR()/VIEW.s;
+  const minD=drawnPodR*0.95+0.5;
+  const rTh=Math.max(1.3, podPxR()*0.38/VIEW.s*2.2);
+  // rider vs rider
+  for(let i=0;i<fly.length;i++) for(let j=i+1;j<fly.length;j++){
+    const a=fly[i], b=fly[j];
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||0.001;
+    if(d<rTh){
+      const nx=dx/d, ny=dy/d;
+      const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+      if(rel<0){
+        const k=(1+0.75)/2*(-rel);   // equal masses, restitution 0.75
+        a.vx-=nx*k; a.vy-=ny*k;
+        b.vx+=nx*k; b.vy+=ny*k;
+        a.vr=rnd(-10,10); b.vr=rnd(-10,10);
+        const push=(rTh-d)/2;
+        a.x-=nx*push; a.y=Math.max(0.5,a.y-ny*push);
+        b.x+=nx*push; b.y=Math.max(0.5,b.y+ny*push);
+        if(-rel>4){ addText((a.x+b.x)/2,(a.y+b.y)/2+1.2,'BONK!','#fff',16); SFX.thud(-rel*0.5); }
+      }
+    }
+  }
+  // rider vs the ride itself
+  for(const r of fly){
+    if(S.t-(r.ejT||0) < 0.35) continue;   // grace period right after ejection
+    const dx=r.x-podX, dy=r.y-podY, d=Math.hypot(dx,dy)||0.001;
+    if(d<minD){
+      const nx=dx/d, ny=dy/d;
+      const rel=(r.vx-S.pod.vx)*nx+(r.vy-S.pod.vy)*ny;
+      if(rel<0){
+        S.hits=(S.hits||0)+1;
+        const k=(1+0.7)*(-rel);      // pod is far heavier — rider takes the bounce
+        r.vx+=nx*k; r.vy+=ny*k;
+        r.vr=rnd(-12,12);
+        r.x=podX+nx*minD; r.y=Math.max(0.5,podY+ny*minD);
+        S.pod.vx-=nx*k*0.18; S.pod.vy-=ny*k*0.18;   // pod shudders from the hit
+        const hitV=-rel;
+        if(hitV>10){
+          landingDamage(r,hitV*0.8);
+          addText(r.x,r.y+1.5,'CLANG!!','#ffd23f',18);
+          S.shake=Math.max(S.shake,6);
+        } else if(hitV>4) addText(r.x,r.y+1.5,'BONK!','#fff',15);
+        SFX.thud(hitV*0.6);
+      }
+    }
+  }
+}
+
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function landingDamage(r,v){
+  groundDust(r.x);
+  const lvl = v>19?5 : v>13?4 : v>9?3 : v>5?2 : 1;
+  if(lvl <= (r.landLvl||0)) return;   // later soft bounces can't downgrade injuries
+  r.landLvl=lvl;
+  if(lvl===5){
+    r.dmg.head=3; r.dmg.neck=3; r.dmg.legs=3; r.dmg.arms=3; r.dmg.torso=2;
+    r.face='dead';
+    r.status=pick(['Total dismemberment — head went thataway ☠️','Scattered across three zip codes ☠️','Closed-casket special: head, arms & legs all gone ☠️','Hit at '+v.toFixed(0)+' m/s. Now in convenient pieces ☠️']);
+    spawnBlood(r.x,r.y,30); detachLimbs(r);
+    SFX.splat();
+    addText(r.x,r.y+2,'KER-SPLAT.','#ff2222',24);
+  } else if(lvl===4){
+    r.dmg.legs=3; r.dmg.arms=3; r.dmg.neck=2; r.dmg.torso=2;
+    r.face='dead';
+    r.status=pick(['Dismembered — snapped neck, lost both legs & an arm ☠️','Came apart on impact: limbs everywhere, neck gone ☠️','Shed three limbs & a pulse ☠️']);
+    spawnBlood(r.x,r.y,18); detachLimbs(r);
+    SFX.splat();
+    addText(r.x,r.y+2,'SPLAT.','#ff2222',22);
+  } else if(lvl===3){
+    spawnChunks(r.x,5); spawnRing(r.x,0.8,3.5);
+    r.dmg.legs=2; r.dmg.arms=2; r.dmg.neck=2; r.dmg.torso=1;
+    r.face='ko';
+    r.status=pick(['Broken neck, shattered femurs, cracked ribs!','Folded like a lawn chair — spine & both legs broken!','Neck snapped on impact + arms bent backwards!']);
+    spawnBlood(r.x,r.y,8); detachLimbs(r);
+    SFX.crack(); SFX.thud(v);
+    addText(r.x,r.y+2,'CRRRUNCH!','#ff4444',19);
+  } else if(lvl===2){
+    r.dmg.legs=2; r.dmg.arms=1; r.dmg.neck=1;
+    r.face='pain';
+    r.status=pick(['Both legs broken + nasty whiplash!','Femurs pulverized, wrist crunched!','Legs now bend the wrong way!']);
+    spawnBlood(r.x,r.y,4);
+    SFX.thud(v);
+    addText(r.x,r.y+2,'OOF!!','#fff',16);
+  } else {
+    r.dmg.legs=Math.max(r.dmg.legs,1);
+    r.face='dizzy';
+    r.status=pick(['Bruised butt, bruised ego','Bounced twice. Mostly fine…','Tailbone & dignity: fractured']);
+    addText(r.x,r.y+2,'oof.','#fff',13);
+  }
+}
+
+function detachLimbs(r){
+  const kinds=[];
+  if(r.dmg.legs===3) kinds.push('leg','leg');
+  if(r.dmg.arms===3) kinds.push('arm','arm');
+  if(r.dmg.head===3) kinds.push('head');
+  for(const kind of kinds){
+    S.particles.push({type:'limb',kind,shirt:r.shirt,x:r.x+rnd(-1,1),y:r.y+1,
+      vx:rnd(-7,7),vy:rnd(4,11),rot:rnd(0,TAU),vr:rnd(-12,12),life:99,rest:false});
+  }
+}
+
+/* -------- settle & finish -------- */
+function checkSettle(dt){
+  const sp=Math.hypot(S.pod.vx,S.pod.vy);
+  const calm = sp<1.6 && S.feltG>0.5 && S.feltG<1.5;
+  const grounded = S.pod.y<=cfg.podR+0.05 && sp<1.6;
+  if(calm||grounded) S.settleTimer+=dt; else S.settleTimer=0;
+  const airborne=S.riders.some(r=>r.mode==='flying');
+  if(S.settleTimer>0.9 && !airborne){
+    if(S.snapped[0]||S.snapped[1]||grounded) finishRide();
+    else { S.phase='winch'; updateBanner('winch'); }
+  }
+}
+
+function finishRide(){
+  S.phase='done';
+  if(S.resultDone) return;
+  S.resultDone=true;
+  let injured=0, dead=0;
+  for(const r of S.riders){
+    const worst=Math.max(r.dmg.head,r.dmg.neck,r.dmg.torso,r.dmg.arms,r.dmg.legs);
+    if(r.face==='dead'||r.dmg.head===3) dead++;
+    else if(worst>=1) injured++;
+    else if(S.snapped[0]||S.snapped[1]){ r.face='dizzy'; r.status=pick(['Unhurt but traumatized.','Physically fine. Emotionally: shredded.','Survived a rope snap. Will sue.']); injured++; }
+    else { r.face='happy'; r.status=pick(['BEST. RIDE. EVER!','10/10 — would defy death again!','AGAIN! AGAIN! AGAIN!']); }
+  }
+  if(S.crushed) injured+=S.crushed;   // bystanders count too
+  if(dead||injured){
+    // ambulance drives to the thrown bodies, not the ride
+    const thrown=S.riders.filter(r=>r.mode==='landed'||r.mode==='flying');
+    let targetX = thrown.length ? thrown.reduce((a,r)=>a+r.x,0)/thrown.length : S.pod.x;
+    targetX = clamp(targetX, -scene.width/(2*VIEW.s)+22, scene.width/(2*VIEW.s)-22);
+    S.ambulance={x:S2WX(scene.width)+10, phase:'in', timer:0, targetX};
+    SFX.siren();
+    updateBanner(dead?'carnage':'injured');
+  } else {
+    spawnConfetti(); fireworks();
+    SFX.cheer();
+    updateBanner('happy');
+  }
+  if(S.crushed) S.bannerSub=S.crushed+' innocent bystander'+(S.crushed>1?'s':'')+' crushed. Lawyers en route.';
+  setControlsEnabled(true);
+}
+
+/* ============================ PARTICLES & TEXT ============================ */
+function addText(x,y,str,color,size){ S.texts.push({x,y,str,color,size,life:1.6}); }
+function spawnRing(x,y,maxR){ S.particles.push({type:'ring',x,y,r:0.4,maxR,life:0.45,t0:0.45,vx:0,vy:0,rot:0,vr:0}); }
+function spawnChunks(x,n){
+  for(let i=0;i<n;i++) S.particles.push({type:'chunk',x:x+rnd(-1,1),y:0.4,vx:rnd(-7,7),vy:rnd(3,10),rot:rnd(0,TAU),vr:rnd(-12,12),life:rnd(.5,1)});
+}
+function spawnBlood(x,y,n){
+  for(let i=0;i<n;i++) S.particles.push({type:'blood',x,y:y+rnd(0,1),vx:rnd(-7,7),vy:rnd(1,10),life:3,rot:0,vr:0,r:rnd(.15,.45)});
+}
+function groundDust(x){
+  for(let i=0;i<8;i++) S.particles.push({type:'dust',x:x+rnd(-2,2),y:0.3,vx:rnd(-4,4),vy:rnd(1,4),life:rnd(.4,.9),rot:0,vr:0});
+}
+function spawnConfetti(){
+  for(let i=0;i<130;i++) S.particles.push({type:'confetti',x:rnd(-0.6,0.6)*S.H,y:S.H*rnd(1.2,2),
+    vx:rnd(-2,2),vy:rnd(-3,-1),life:rnd(3,6),rot:rnd(0,TAU),vr:rnd(-6,6),
+    color:['#ffd23f','#d8403f','#3d7bd9','#3fae5a','#b65fd0'][i%5]});
+}
+function stepParticles(dt){
+  for(let i=S.particles.length-1;i>=0;i--){
+    const p=S.particles[i];
+    if(p.type==='ring'){ p.r+=(p.maxR/p.t0)*dt; p.life-=dt; }
+    else if(p.type==='chunk'){ p.vy-=GRAV*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.rot+=p.vr*dt; p.life-=dt; if(p.y<0.1)p.life=0; }
+    else if(p.type==='confetti'){ p.vy=Math.max(p.vy-GRAV*dt*0.1,-2.5); p.x+=p.vx*dt+Math.sin(S.t*4+i)*dt*2; p.y+=p.vy*dt; p.rot+=p.vr*dt; p.life-=dt; }
+    else if(p.type==='limb'){
+      if(!p.rest){ p.vy-=GRAV*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.rot+=p.vr*dt;
+        if(p.y<0.3&&p.vy<0){
+          crushSpectators(p.x, p.kind==='head'?0.8:0.6);   // even a stray limb can take someone out
+          if(Math.abs(p.vy)>3){p.vy=-p.vy*0.3;p.vx*=0.5;spawnBlood(p.x,0.4,2);} else {p.rest=true;p.y=0.3;S.stains.push({x:p.x,y:0.15,r:rnd(0.5,1)});} } }
+    }
+    else { p.vy-=(p.type==='dust'?2:GRAV)*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+      if(p.type==='blood' && p.y<=0.12){ if(S.stains.length<140) S.stains.push({x:p.x,y:0.1,r:p.r*rnd(1.5,3)}); S.particles.splice(i,1); continue; } }
+    if(p.life<=0 && p.type!=='limb') S.particles.splice(i,1);
+  }
+  for(let i=S.texts.length-1;i>=0;i--){ const t=S.texts[i]; t.y+=dt*3; t.life-=dt; if(t.life<=0) S.texts.splice(i,1); }
+}
+
+function stepAmbulance(dt){
+  const a=S.ambulance; if(!a) return;
+  if(a.phase==='in'){ a.x-=102*dt; if(a.x<=a.targetX+7){a.phase='wait';a.timer=0; addText(a.x,4,'WEE-OO WEE-OO 🚨','#fff',15);} }
+  else if(a.phase==='wait'){
+    a.timer+=dt;
+    if(a.timer>1.6){
+      a.phase='out';
+      // load the bodies: EVERY injured rider leaves with the ambulance, blood stays
+      for(const r of S.riders){
+        const worst=Math.max(r.dmg.head,r.dmg.neck,r.dmg.torso,r.dmg.arms,r.dmg.legs);
+        if(r.mode==='landed'||r.mode==='flying'){
+          r.mode='taken';
+          S.stains.push({x:r.x,y:0.1,r:rnd(1.0,1.6)});
+        } else if(r.mode==='seated' && worst>=1){
+          r.mode='taken';   // stretchered out of the pod too
+        }
+      }
+      for(let i=S.particles.length-1;i>=0;i--){
+        const p=S.particles[i];
+        if(p.type==='limb'){ S.stains.push({x:p.x,y:0.1,r:rnd(0.5,0.9)}); S.particles.splice(i,1); }
+      }
+      addText(a.x,5,'🚑 off to the ER!','#fff',14);
+    }
+  }
+  else if(a.phase==='out'){ a.x-=120*dt; if(W2SX(a.x)<-120) S.ambulance=null; }
+}
+
+/* ============================ BANNER & STATS ============================ */
+function updateBanner(kind){
+  const B={
+    boarding:['🎟️ ALL ABOARD!','Mind the gap. And the physics.'],
+    idle:    ['GRAB THE POD & PULL BACK!','Sliders set the ride. Belts… optional. 😬'],
+    dragging:['PULL HARDER!','Release to launch — watch the rope tension!'],
+    flying:  ['HOLD ON!!!',''],
+    snap:    ['💥 ROPE SNAPPED!!','Management denies everything.'],
+    doubleSnap:['💥💥 BOTH ROPES GONE!!','The seat is now a projectile. Bold choice.'],
+    ejected: ['THEY HAVE NO SEATBELTS!!','Gravity will handle it from here.'],
+    beltfail:['A BELT JUST POPPED OPEN!!','Quality assurance was on lunch break.'],
+    winch:   ['RIDE COMPLETE — WINCHING DOWN','Please keep limbs inside (those that remain).'],
+    happy:   ['🎉 RIDE COMPLETE! EVERYONE SURVIVED! 🎉','5 stars on Yelp incoming!'],
+    injured: ['🚑 RIDE COMPLETE… MOSTLY','Some assembly may be required.'],
+    carnage: ['☠️ TOTAL CARNAGE ☠️','The carnival is not liable. (It is.)'],
+  }[kind]||['',''];
+  S.banner=B[0]; S.bannerSub=B[1]; S.bannerT=0;
+}
+
+function updateStats(){
+  const Tw=Math.max(S.tension[0],S.tension[1]);
+  ui.tensionV.textContent=(Tw/1000).toFixed(1)+' kN';
+  ui.tensionV.style.color = Tw>S.Tmax ? '#c00' : '';
+  ui.tensionBar.style.width=clamp(Tw/(S.Tmax*1.5)*100,0,100)+'%';
+  const pull=S.phase==='dragging'?dist(S.pod.x,S.pod.y,0,cfg.platformY):0;
+  ui.pullV.textContent=pull.toFixed(1)+' m';
+  if(S.phase==='dragging'){
+    const {fx,fy}=cordForce(S.pod.x,S.pod.y);
+    ui.predGV.textContent=(Math.hypot(fx,fy)/S.mass/GRAV).toFixed(1)+' g';
+    ui.riskV.textContent=Math.round(riskEstimate(S.maxTensionRatio)*100)+'%';
+  } else if(S.phase==='idle'){ ui.predGV.textContent='—'; ui.riskV.textContent=Math.round(riskEstimate(0)*100)+'%'; }
+  ui.liveGV.textContent=S.feltG.toFixed(1)+' g';
+  ui.maxGV.textContent=S.maxG.toFixed(1)+' g';
+  ui.maxGV.style.color=S.maxG>9?'#c00':'';
+  ui.ropeV.textContent=Math.round((1-S.fray)*100)+'%';
+  ui.ropeBar.style.width=((1-S.fray)*100)+'%';
+  ui.statusLine.textContent=S.banner+(S.bannerSub?' — '+S.bannerSub:'');
+}
+
+/* ============================ SCENE DRAWING ============================ */
+function drawScene(){
+  const c=sctx, cw=scene.width, ch=scene.height;
+  const sky=c.createLinearGradient(0,0,0,ch);
+  sky.addColorStop(0,'#54b6ff'); sky.addColorStop(1,'#d2efff');
+  c.fillStyle=sky; c.fillRect(0,0,cw,ch);
+  c.save();
+  if(S.shake>0.2) c.translate(rnd(-1,1)*S.shake*0.7, rnd(-1,1)*S.shake*0.7);
+  drawBackground(c);
+  drawGround(c);
+  drawTowersAndCords(c);
+  drawTrail(c);
+  drawBoarders(c);
+  drawPod(c);
+  drawFlyingRiders(c);
+  drawParticles(c);
+  drawTexts(c);
+  drawAmbulance(c);
+  if(S.phase==='idle') drawHint(c);
+  c.restore();
+  drawVignette(c);
+  drawBunting(c,cw);
+  drawBanner(c,cw);
+  if(MQ_MOBILE && MQ_MOBILE.matches) drawTelemetryOverlay(c);
+}
+
+function drawVignette(c){
+  const cw=scene.width, ch=scene.height;
+  const g=c.createRadialGradient(cw/2,ch*0.45,ch*0.45,cw/2,ch*0.5,ch*0.98);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(18,28,58,.22)');
+  c.fillStyle=g; c.fillRect(0,0,cw,ch);
+}
+
+function drawTrail(c){
+  const n=S.trail.length; if(n<3) return;
+  c.lineCap='round';
+  for(let i=1;i<n;i++){
+    const a=i/n, p0=S.trail[i-1], p1=S.trail[i];
+    c.strokeStyle='rgba(255,215,80,'+(a*0.32).toFixed(3)+')';
+    c.lineWidth=Math.max(podPxR()*0.9*a,1);
+    c.beginPath(); c.moveTo(W2SX(p0.x),W2SY(p0.y)); c.lineTo(W2SX(p1.x),W2SY(p1.y)); c.stroke();
+  }
+}
+
+/* compact telemetry overlay for mobile (replaces the side panel) */
+const MQ_MOBILE = (typeof matchMedia!=='undefined') ? matchMedia('(max-width:1100px)') : null;
+function drawTelemetryOverlay(c){
+  const Tw=Math.max(S.tension[0],S.tension[1]);
+  const risk=riskEstimate(S.phase==='dragging'?S.maxTensionRatio:0);
+  const rows=[
+    ['TENSION',(Tw/1000).toFixed(1)+'kN '+Math.round(Tw/S.Tmax*100)+'%', Tw>S.Tmax?'#ff5050':'#fff'],
+    ['LIVE G', S.feltG.toFixed(1)+'g', '#ffb02e'],
+    ['MAX G',  S.maxG.toFixed(1)+'g', S.maxG>9?'#ff5050':'#fff'],
+    ['RISK',   Math.round(risk*100)+'%', risk>0.3?'#ff5050':'#fff'],
+    ['ROPE',   Math.round((1-S.fray)*100)+'%', S.fray>0.4?'#ff5050':'#9fe87a'],
+  ];
+  const pw=255, lh=34, ph=rows.length*lh+22, x0=10, y0=scene.height-ph-10;
+  c.fillStyle='rgba(21,32,58,.78)';
+  c.beginPath(); c.roundRect(x0,y0,pw,ph,12); c.fill();
+  c.strokeStyle='rgba(255,255,255,.3)'; c.lineWidth=2; c.stroke();
+  c.font='bold 23px sans-serif';
+  rows.forEach((r,i)=>{
+    const y=y0+34+i*lh;
+    c.textAlign='left';  c.fillStyle='#8ea4cc'; c.fillText(r[0],x0+14,y);
+    c.textAlign='right'; c.fillStyle=r[2];      c.fillText(r[1],x0+pw-14,y);
+  });
+  c.textAlign='left';
+}
+
+function drawBackground(c){
+  const cw=scene.width, gy=W2SY(0);
+  // sun with glow + face
+  const sx=cw-90, sy=78;
+  const glow=c.createRadialGradient(sx,sy,10,sx,sy,95);
+  glow.addColorStop(0,'rgba(255,236,130,.85)'); glow.addColorStop(1,'rgba(255,236,130,0)');
+  c.fillStyle=glow; c.fillRect(sx-100,sy-100,200,200);
+  c.fillStyle='#ffdf45'; c.beginPath(); c.arc(sx,sy,34,0,TAU); c.fill();
+  c.strokeStyle='#f5a623'; c.lineWidth=3;
+  for(let i=0;i<10;i++){ const a=i/10*TAU+S.t*0.15;
+    c.beginPath(); c.moveTo(sx+Math.cos(a)*40,sy+Math.sin(a)*40); c.lineTo(sx+Math.cos(a)*50,sy+Math.sin(a)*50); c.stroke(); }
+  drawFace(c,sx,sy,16,'happy');
+  // distant hills
+  c.fillStyle='#8fcf60'; c.beginPath(); c.ellipse(cw*0.22,gy+28,cw*0.38,68,0,Math.PI,TAU); c.fill();
+  c.fillStyle='#7cc24e'; c.beginPath(); c.ellipse(cw*0.80,gy+40,cw*0.45,88,0,Math.PI,TAU); c.fill();
+  // birds
+  c.strokeStyle='#3c4a66'; c.lineWidth=2;
+  for(let i=0;i<3;i++){
+    const bx=((S.t*14+i*330)%(cw+120))-60, by=64+i*42+Math.sin(S.t*2+i)*7, w=7+i*2;
+    c.beginPath(); c.moveTo(bx-w,by); c.quadraticCurveTo(bx-w/2,by-6,bx,by); c.quadraticCurveTo(bx+w/2,by-6,bx+w,by); c.stroke();
+  }
+  // layered clouds
+  DECOR.clouds.forEach((cl,i)=>{
+    const cx=((i*300+S.t*cl.sp)%(cw+220))-110, cy=cl.y;
+    c.fillStyle='rgba(255,255,255,'+cl.a+')';
+    c.beginPath();
+    c.ellipse(cx,cy,44*cl.s,16*cl.s,0,0,TAU);
+    c.ellipse(cx+26*cl.s,cy-9*cl.s,28*cl.s,13*cl.s,0,0,TAU);
+    c.ellipse(cx-28*cl.s,cy-6*cl.s,24*cl.s,11*cl.s,0,0,TAU);
+    c.fill();
+  });
+  // drifting balloons (poppable!)
+  for(const b of DECOR.balloons){
+    if(b.popped) continue;
+    const bx=cw*b.f+Math.sin(S.t+b.ph)*14;
+    const by=scene.height-b.prog+20;
+    c.strokeStyle='rgba(80,80,95,.5)'; c.lineWidth=1;
+    c.beginPath(); c.moveTo(bx,by+12); c.quadraticCurveTo(bx+4,by+26,bx-2,by+38); c.stroke();
+    c.fillStyle=b.c; c.beginPath(); c.ellipse(bx,by,9,12,0,0,TAU); c.fill();
+    c.fillStyle='rgba(255,255,255,.45)'; c.beginPath(); c.ellipse(bx-3,by-4,3,4.5,0,0,TAU); c.fill();
+  }
+  // ferris wheel (FIXED size so towers scale against it)
+  const fx=cw-170, fr=88, fy=gy-fr-18;
+  c.strokeStyle='#b3551f'; c.lineWidth=5;
+  c.beginPath(); c.moveTo(fx-fr*0.5,gy); c.lineTo(fx,fy); c.lineTo(fx+fr*0.5,gy); c.stroke();
+  c.strokeStyle='#9c7553'; c.lineWidth=2.5;
+  c.beginPath(); c.arc(fx,fy,fr,0,TAU); c.stroke();
+  c.beginPath(); c.arc(fx,fy,fr*0.72,0,TAU); c.stroke();
+  for(let i=0;i<10;i++){ const a=S.ferris+i/10*TAU;
+    c.strokeStyle='#9c7553'; c.lineWidth=2.5;
+    c.beginPath(); c.moveTo(fx,fy); c.lineTo(fx+Math.cos(a)*fr,fy+Math.sin(a)*fr); c.stroke();
+    const gx=fx+Math.cos(a)*fr, gyy=fy+Math.sin(a)*fr;
+    c.fillStyle=SHIRTS[i%4]; c.beginPath(); c.arc(gx,gyy+6,6.5,0,TAU); c.fill();
+    c.strokeStyle='#1d2a44'; c.lineWidth=1; c.stroke();
+  }
+  c.fillStyle='#ffd23f'; c.beginPath(); c.arc(fx,fy,8,0,TAU); c.fill();
+  c.strokeStyle='#1d2a44'; c.lineWidth=2; c.stroke();
+  // circus tent
+  const tx=130, tw=90, ty=gy;
+  c.fillStyle='#c23636'; c.beginPath(); c.moveTo(tx-tw,ty); c.lineTo(tx-tw*0.7,ty-60); c.lineTo(tx,ty-78); c.lineTo(tx+tw*0.7,ty-60); c.lineTo(tx+tw,ty); c.fill();
+  c.fillStyle='#fff';
+  for(let i=-1;i<=1;i++){ c.beginPath(); c.moveTo(tx+i*tw*0.55,ty); c.lineTo(tx+i*tw*0.40,ty-56); c.lineTo(tx+i*tw*0.25,ty); c.fill(); }
+  c.fillStyle='#8e1f1e'; c.beginPath(); c.ellipse(tx,ty-76,26,9,0,Math.PI,TAU); c.fill();
+  c.strokeStyle='#1d2a44'; c.lineWidth=2; c.beginPath(); c.moveTo(tx,ty-76); c.lineTo(tx,ty-92); c.stroke();
+  c.fillStyle='#ffd23f'; c.beginPath(); c.moveTo(tx,ty-92); c.lineTo(tx+12+Math.sin(S.t*3)*2,ty-87); c.lineTo(tx,ty-82); c.fill();
+  // spectators behind a fence
+  const fx0=SPECT_X0;
+  c.strokeStyle='#8d5a2b'; c.lineWidth=3;
+  c.beginPath(); c.moveTo(fx0-12,gy-13); c.lineTo(fx0+148,gy-13); c.stroke();
+  for(let i=0;i<6;i++){ c.beginPath(); c.moveTo(fx0+i*30,gy-13); c.lineTo(fx0+i*30,gy); c.stroke(); }
+  const excited=(S.phase==='flying'||S.phase==='dragging');
+  for(const sp of DECOR.spect){
+    if(sp.alive===false) continue;
+    const z=sp.sz, px=fx0+sp.dx;
+    const bob=excited?Math.abs(Math.sin(S.t*(sp.jumper?11:8)+sp.ph))*(sp.jumper?7:3)*z:0;
+    c.strokeStyle=sp.c; c.lineWidth=3*z;
+    c.beginPath(); c.moveTo(px,gy-8*z-bob); c.lineTo(px,gy-20*z-bob); c.stroke();
+    const aa=excited?-7*z:4*z;
+    c.beginPath(); c.moveTo(px-5*z,gy-14*z-bob+aa); c.lineTo(px,gy-18*z-bob); c.lineTo(px+5*z,gy-14*z-bob+aa); c.stroke();
+    c.fillStyle='#f5c89a'; c.beginPath(); c.arc(px,gy-25*z-bob,4.5*z,0,TAU); c.fill();
+  }
+  // tethered balloon at the fence sways in the breeze
+  const bx2=fx0+158, by2=gy-58+Math.sin(S.t*1.4)*4;
+  c.strokeStyle='rgba(80,80,95,.55)'; c.lineWidth=1;
+  c.beginPath(); c.moveTo(fx0+155,gy-13); c.quadraticCurveTo(bx2-4,gy-36,bx2,by2+12); c.stroke();
+  c.fillStyle='#d8403f'; c.beginPath(); c.ellipse(bx2,by2,9,12,Math.sin(S.t*1.4)*0.12,0,TAU); c.fill();
+  c.fillStyle='rgba(255,255,255,.45)'; c.beginPath(); c.ellipse(bx2-3,by2-4,3,4.5,0,0,TAU); c.fill();
+}
+
+function drawGround(c){
+  const gy=W2SY(0), cw=scene.width;
+  const gg=c.createLinearGradient(0,gy,0,scene.height);
+  gg.addColorStop(0,'#74c93a'); gg.addColorStop(1,'#4e9722');
+  c.fillStyle=gg; c.fillRect(0,gy,cw,scene.height-gy);
+  c.fillStyle='#57a325'; c.fillRect(0,gy,cw,5);
+  // swaying grass tufts & flowers
+  for(const tf of DECOR.tufts){
+    const x=tf.f*cw, y=gy+8+(tf.f*53%1)*22, sway=Math.sin(S.t*2+tf.ph)*1.5;
+    c.strokeStyle='rgba(40,110,25,.7)'; c.lineWidth=1.5;
+    c.beginPath();
+    c.moveTo(x,y); c.lineTo(x-3+sway,y-tf.h);
+    c.moveTo(x,y); c.lineTo(x+sway,y-tf.h-2);
+    c.moveTo(x,y); c.lineTo(x+3+sway,y-tf.h);
+    c.stroke();
+  }
+  for(const fl of DECOR.flowers){
+    const x=fl.f*cw, y=gy+10+fl.g*22;
+    c.fillStyle=fl.c; c.beginPath(); c.arc(x,y,2.6,0,TAU); c.fill();
+    c.fillStyle='rgba(255,255,255,.5)'; c.beginPath(); c.arc(x-0.8,y-0.8,1,0,TAU); c.fill();
+  }
+  // blood stains
+  for(const st of S.stains){
+    c.fillStyle='rgba(150,10,10,.55)';
+    c.beginPath(); c.ellipse(W2SX(st.x),gy+4,Math.max(st.r*VIEW.s,5),3.5,0,0,TAU); c.fill();
+  }
+  // raised boarding platform (10 m) with access ramp
+  const deck=W2SY(DECK), rampTopX=W2SX(2.5), rampBotX=W2SX(12);
+  c.strokeStyle='#7a4a21'; c.lineWidth=Math.max(0.5*VIEW.s,3); c.lineCap='butt';
+  for(const fx of [-2,0,2]){ const X=W2SX(fx); c.beginPath(); c.moveTo(X,gy); c.lineTo(X,deck); c.stroke(); }
+  c.lineWidth=2; c.strokeStyle='rgba(122,74,33,.6)';
+  c.beginPath(); c.moveTo(W2SX(-2),gy); c.lineTo(W2SX(0),deck); c.moveTo(W2SX(0),gy); c.lineTo(W2SX(2),deck);
+  c.moveTo(W2SX(0),gy); c.lineTo(W2SX(-2),deck); c.moveTo(W2SX(2),gy); c.lineTo(W2SX(0),deck); c.stroke();
+  // deck planks
+  c.fillStyle='#8d5a2b'; c.fillRect(W2SX(-2.8),deck-3,W2SX(2.8)-W2SX(-2.8),Math.max(0.45*VIEW.s,5));
+  c.fillStyle='#d8403f'; c.fillRect(W2SX(-2.8),deck-6,W2SX(2.8)-W2SX(-2.8),3);
+  // ramp + supports + handrail
+  c.strokeStyle='#8d5a2b'; c.lineWidth=Math.max(0.5*VIEW.s,4);
+  c.beginPath(); c.moveTo(rampBotX,gy); c.lineTo(rampTopX,deck); c.stroke();
+  c.strokeStyle='#7a4a21'; c.lineWidth=2.5;
+  for(const fx of [9.5,6.8,4.4]){ const fy=(12-fx)/9.5*DECK; c.beginPath(); c.moveTo(W2SX(fx),gy); c.lineTo(W2SX(fx),W2SY(fy)); c.stroke(); }
+  c.strokeStyle='#b3551f'; c.lineWidth=2.5;
+  c.beginPath(); c.moveTo(rampBotX,gy-13); c.lineTo(rampTopX,deck-13); c.stroke();
+}
+
+function drawTowersAndCords(c){
+  // side view: rear tower peeks out behind the front one for depth
+  const tw=Math.max(1.6*VIEW.s,12);
+  const front={x:W2SX(cfg.towerX), rear:false}, rear={x:W2SX(-cfg.towerX)-tw*0.45, rear:true};
+  for(const t of [rear,front]){
+    const X=t.x, top=W2SY(S.H), gy=W2SY(0);
+    const hpx=gy-top, stripes=Math.max(6,Math.round(hpx/26));
+    for(let i=0;i<stripes;i++){
+      c.fillStyle = t.rear ? (i%2?'#cdbfa6':'#9c3030') : (i%2?'#fff':'#d8403f');
+      c.fillRect(X-tw/2, top+i*hpx/stripes, tw, hpx/stripes+1);
+    }
+    // lattice cross-bracing
+    c.strokeStyle='rgba(29,42,68,.22)'; c.lineWidth=1.5;
+    for(let i=0;i<stripes;i++){
+      const yy=top+i*hpx/stripes, sh=hpx/stripes;
+      c.beginPath(); c.moveTo(X-tw/2,yy); c.lineTo(X+tw/2,yy+sh); c.moveTo(X+tw/2,yy); c.lineTo(X-tw/2,yy+sh); c.stroke();
+    }
+    c.strokeStyle='#1d2a44'; c.lineWidth=2; c.strokeRect(X-tw/2,top,tw,hpx);
+    // base plate
+    c.fillStyle='#1d2a44'; c.fillRect(X-tw*0.85,gy-4,tw*1.7,5);
+    // top cap + flag + blinking beacon
+    c.fillStyle='#1d2a44'; c.beginPath(); c.arc(X,top,tw*0.55,0,TAU); c.fill();
+    if(!t.rear){
+      c.strokeStyle='#1d2a44'; c.beginPath(); c.moveTo(X,top); c.lineTo(X,top-18); c.stroke();
+      c.fillStyle='#ffd23f'; c.beginPath(); c.moveTo(X,top-18); c.lineTo(X+15+Math.sin(S.t*3)*2,top-13); c.lineTo(X,top-8); c.fill();
+      const blink=0.5+0.5*Math.sin(S.t*6);
+      const bg=c.createRadialGradient(X,top-22,1,X,top-22,14);
+      bg.addColorStop(0,'rgba(255,60,60,'+(0.5*blink).toFixed(2)+')'); bg.addColorStop(1,'rgba(255,60,60,0)');
+      c.fillStyle=bg; c.fillRect(X-14,top-36,28,28);
+      c.fillStyle='rgba(255,40,40,'+(0.25+0.65*blink).toFixed(2)+')';
+      c.beginPath(); c.arc(X,top-22,3.5+blink*2.5,0,TAU); c.fill();
+    }
+  }
+  // cords
+  const R=podPxR(), p=S.pod;
+  const pX=W2SX(p.x), pY=W2SY(p.y);
+  for(let i=0;i<2;i++){
+    const tX=W2SX(i?cfg.towerX:-cfg.towerX), tY=W2SY(S.H);
+    if(S.snapped[i]){
+      // dangling snapped cord
+      c.strokeStyle='#7a4a21'; c.lineWidth=3; c.beginPath(); c.moveTo(tX,tY);
+      const hang=Math.min((W2SY(0)-tY)*0.45,200);
+      for(let k=1;k<=10;k++) c.lineTo(tX+Math.sin(k*0.9+S.t*9)*S.snapWave[i]*14,(tY+k*hang/10));
+      c.stroke();
+      continue;
+    }
+    const ratio=S.tension[i]/S.Tmax;
+    const over=ratio>1;
+    const bx=pX+(i?1:-1)*R*0.75, by=pY-R*0.15;
+    // sag when slack, straight when taut
+    const dw=dist(p.x,p.y, i?cfg.towerX:-cfg.towerX, S.H);
+    const sag=clamp((S.L0-dw)*VIEW.s*0.45, 0, 90)+3;
+    if(over){ // hot glow under an overloaded rope
+      c.strokeStyle='rgba(255,40,40,.3)'; c.lineWidth=clamp(2+ratio*4,2,8)+7;
+      c.beginPath(); c.moveTo(tX,tY); c.quadraticCurveTo((tX+bx)/2,(tY+by)/2+sag,bx,by); c.stroke();
+    }
+    c.strokeStyle = over ? (Math.sin(S.t*18)>0?'#ff1111':'#ffd23f')
+                  : ratio>0.66 ? '#e8632c' : ratio>0.33 ? '#caa53d' : '#9c7a3f';
+    const cw2=clamp(2+ratio*4,2,8);
+    c.lineWidth=cw2;
+    c.beginPath(); c.moveTo(tX,tY); c.quadraticCurveTo((tX+bx)/2,(tY+by)/2+sag,bx,by); c.stroke();
+    // twisted-rope highlight
+    c.save();
+    c.setLineDash([7,7]); c.lineDashOffset=-S.t*26;
+    c.strokeStyle='rgba(255,255,255,.28)'; c.lineWidth=Math.max(cw2*0.4,1);
+    c.beginPath(); c.moveTo(tX,tY); c.quadraticCurveTo((tX+bx)/2,(tY+by)/2+sag,bx,by); c.stroke();
+    c.restore();
+  }
+}
+
+function drawPod(c){
+  const p=S.pod, R=podPxR(), X=W2SX(p.x), Y=W2SY(p.y);
+  const tumbling=S.podRot!==0;
+  if(tumbling){ c.save(); c.translate(X,Y); c.rotate(-S.podRot); c.translate(-X,-Y); }
+  // speed lines when whipping along
+  const sp=Math.hypot(p.vx,p.vy);
+  if(sp>9){
+    const nx=-p.vx/sp, ny=p.vy/sp; // screen-space backwards direction
+    c.strokeStyle='rgba(255,255,255,.55)'; c.lineWidth=2.5;
+    for(let i=-1;i<=1;i++){
+      const off=i*R*0.45, len=clamp(sp*1.6,14,46);
+      c.beginPath();
+      c.moveTo(X+nx*R*1.2-ny*off, Y+ny*R*1.2+nx*off);
+      c.lineTo(X+nx*(R*1.2+len)-ny*off, Y+ny*(R*1.2+len)+nx*off);
+      c.stroke();
+    }
+  }
+  // shadow
+  c.fillStyle='rgba(0,0,0,.18)';
+  c.beginPath(); c.ellipse(X,W2SY(0)+5,R*1.1*clamp(1-(p.y/S.H)*0.5,0.4,1),5,0,0,TAU); c.fill();
+  // back shell — metallic gradient
+  const shellG=c.createLinearGradient(X,Y-R,X,Y+R);
+  shellG.addColorStop(0,'#a268cc'); shellG.addColorStop(0.45,'#7b3fa0'); shellG.addColorStop(1,'#4a2363');
+  c.fillStyle=shellG;
+  c.beginPath(); c.ellipse(X,Y,R,R*0.78,0,0,TAU); c.fill();
+  // seated riders (upper bodies above rim)
+  const seated=S.riders.filter(r=>r.mode==='seated'), n=S.riders.length;
+  const jig=S.phase==='flying' ? clamp(S.feltG-1.5,0,4)*0.9 : 0;  // G-load rattles them in their seats
+  for(const r of seated){
+    const ox=(r.seat-(n-1)/2)*R*0.5;
+    drawRiderTop(c, X+ox, Y-R*0.25+(jig?Math.sin(S.t*45+r.seat*2.1)*jig:0), R*0.30, r);
+  }
+  // harness bar — slides down with a clunk after boarding
+  if(seated.length){
+    const e=1-Math.pow(1-(S.barT===undefined?1:S.barT),3);
+    const by=Y-R*1.25+(R*1.1)*e;
+    c.strokeStyle='#555c66'; c.lineWidth=Math.max(R*0.06,2);
+    c.beginPath(); c.moveTo(X-R*0.78,Y+R*0.05); c.lineTo(X-R*0.78,by);
+    c.moveTo(X+R*0.78,Y+R*0.05); c.lineTo(X+R*0.78,by); c.stroke();
+    c.strokeStyle='#23262e'; c.lineWidth=Math.max(R*0.14,3.5); c.lineCap='round';
+    c.beginPath(); c.moveTo(X-R*0.78,by); c.lineTo(X+R*0.78,by); c.stroke();
+  }
+  // front rim
+  const grad=c.createLinearGradient(X,Y-R*0.2,X,Y+R*0.8);
+  grad.addColorStop(0,'#d8403f'); grad.addColorStop(1,'#8e1f1e');
+  c.fillStyle=grad;
+  c.beginPath(); c.ellipse(X,Y+R*0.18,R,R*0.55,0,0,Math.PI); c.fill();
+  c.fillRect(X-R,Y+R*0.16,R*2,4);
+  c.fillStyle='#ffd23f';
+  c.font='bold '+Math.max(R*0.42,10)+'px Comic Sans MS';
+  c.textAlign='center'; c.fillText('⚡',X,Y+R*0.55);
+  // rivets along the rim
+  c.fillStyle='#ffe9a8';
+  for(let i=0;i<5;i++){
+    const a=Math.PI*(0.18+0.16*i);
+    c.beginPath(); c.arc(X+Math.cos(a)*R*0.92,Y+R*0.18+Math.sin(a)*R*0.45,Math.max(R*0.045,1.5),0,TAU); c.fill();
+  }
+  // glossy sheen + gold trim
+  c.fillStyle='rgba(255,255,255,.3)';
+  c.beginPath(); c.ellipse(X-R*0.38,Y-R*0.28,R*0.32,R*0.14,-0.5,0,TAU); c.fill();
+  c.strokeStyle='#ffd23f'; c.lineWidth=1.5;
+  c.beginPath(); c.ellipse(X,Y+R*0.1,R*0.88,R*0.52,0,0.15,Math.PI-0.15); c.stroke();
+  c.strokeStyle='#1d2a44'; c.lineWidth=2.5;
+  c.beginPath(); c.ellipse(X,Y,R,R*0.78,0,Math.PI*0.06,Math.PI*0.94); c.stroke();
+  if(tumbling) c.restore();
+}
+
+function drawRiderTop(c,x,y,s,r){
+  // s = head radius px
+  const flying=S.phase==='flying';
+  // arms
+  c.strokeStyle='#f5c89a'; c.lineWidth=Math.max(s*0.36,2.5); c.lineCap='round';
+  const wave=Math.sin(r.armWave)*0.4;
+  for(const sgn of [-1,1]){
+    if(r.mode==='flying' && r.dmg.arms<3){
+      // windmilling in blind panic
+      const a=r.armWave*0.9+sgn*2.4;
+      c.beginPath(); c.moveTo(x+sgn*s*0.9,y+s*0.8);
+      c.lineTo(x+sgn*s*0.9+Math.cos(a)*s*1.7, y+s*0.8+Math.sin(a)*s*1.7); c.stroke();
+    } else {
+      const cheer = S.phase==='done' && r.face==='happy' && r.mode==='seated';
+      const happyArms = ((((r.face==='happy'||r.face==='scared') && flying) || cheer) && r.dmg.arms<2 && r.mode==='seated');
+      const ay = happyArms ? -s*1.6 : s*0.9;
+      c.beginPath(); c.moveTo(x+sgn*s*0.9,y+s*0.8);
+      c.lineTo(x+sgn*s*(happyArms?1.5:1.25), y+ay+(happyArms?wave*s:0)); c.stroke();
+    }
+  }
+  // torso (shirt)
+  c.fillStyle=r.shirt;
+  c.beginPath(); c.roundRect(x-s*0.95,y+s*0.55,s*1.9,s*1.45,s*0.4); c.fill();
+  // belt strap
+  if(r.belted){ c.strokeStyle='#222'; c.lineWidth=Math.max(s*0.25,2);
+    c.beginPath(); c.moveTo(x-s*0.9,y+s*0.7); c.lineTo(x+s*0.9,y+s*1.8); c.stroke(); }
+  // head (tilt if neck broken)
+  c.save(); c.translate(x,y);
+  if(r.dmg.neck>=2) c.rotate(0.5);
+  c.fillStyle = r.face==='dead'?'#cfd8c4':'#f5c89a';
+  c.beginPath(); c.arc(0,0,s,0,TAU); c.fill();
+  c.fillStyle=r.hairC||'#5a3b1e'; c.beginPath(); c.arc(0,-s*0.25,s,Math.PI,TAU); c.fill();
+  if(r.mode==='flying'){ // hair whipped up by the wind
+    c.strokeStyle=r.hairC||'#5a3b1e'; c.lineWidth=Math.max(s*0.2,1.5);
+    for(let k=-1;k<=1;k++){ c.beginPath(); c.moveTo(k*s*0.4,-s*0.85); c.lineTo(k*s*0.55+Math.sin(r.armWave*2+k)*s*0.3,-s*1.45); c.stroke(); }
+  }
+  drawFace(c,0,s*0.1,s*0.8,r.face);
+  c.restore();
+}
+
+function drawBoarders(c){
+  if(S.phase!=='boarding') return;
+  const R=podPxR(), s=R*0.30;
+  for(const r of S.riders){
+    if(r.mode!=='boarding') continue;
+    const X=W2SX(r.x), Yf=W2SY(r.y);   // feet position
+    const a=Math.sin(r.walkPh)*0.55;
+    c.strokeStyle='#2c3e66'; c.lineWidth=Math.max(s*0.4,3); c.lineCap='round';
+    c.beginPath(); c.moveTo(X,Yf-s*1.6); c.lineTo(X+Math.sin(a)*s*0.9,Yf); c.stroke();
+    c.beginPath(); c.moveTo(X,Yf-s*1.6); c.lineTo(X-Math.sin(a)*s*0.9,Yf); c.stroke();
+    drawRiderTop(c,X,Yf-s*2.7,s,r);
+  }
+}
+
+function drawFlyingRiders(c){
+  const R=podPxR();
+  for(const r of S.riders){
+    if(r.mode==='seated'||r.mode==='taken'||r.mode==='boarding') continue;
+    const X=W2SX(r.x), Y=W2SY(r.y), s=R*0.38;
+    // speed-line trail while sailing
+    const sp=r.mode==='flying'?Math.hypot(r.vx,r.vy):0;
+    if(sp>8){
+      const nx=r.vx/sp, ny=r.vy/sp;
+      c.strokeStyle='rgba(255,255,255,.45)'; c.lineWidth=2; c.lineCap='round';
+      for(let k=-1;k<=1;k++){
+        c.beginPath();
+        c.moveTo(X-nx*s*2.4-k*ny*5, Y+ny*s*2.4-k*nx*5);
+        c.lineTo(X-nx*(s*2.4+10+sp*0.6)-k*ny*5, Y+ny*(s*2.4+10+sp*0.6)-k*nx*5);
+        c.stroke();
+      }
+    }
+    c.save(); c.translate(X,Y); c.rotate(r.rot);
+    // legs — scissor-kicking in panic
+    c.lineCap='round';
+    if(r.dmg.legs<3){
+      const k1=r.mode==='flying'?Math.sin(r.armWave*1.3)*0.6:0;
+      c.strokeStyle='#2c3e66'; c.lineWidth=Math.max(s*0.4,3);
+      c.beginPath(); c.moveTo(-s*0.4,s*1.8); c.lineTo(-s*(1+k1),s*(3.0-Math.abs(k1)*0.5)); c.stroke();
+      c.beginPath(); c.moveTo(s*0.4,s*1.8); c.lineTo(s*(1-k1),s*(3.0-Math.abs(k1)*0.5)); c.stroke();
+    } else {
+      c.strokeStyle='#a01010'; c.lineWidth=Math.max(s*0.4,3);
+      for(const sgn of [-1,1]){ c.beginPath(); c.moveTo(sgn*s*0.4,s*1.8); c.lineTo(sgn*s*0.55,s*2.2); c.stroke(); }
+    }
+    drawRiderTop(c,0,0,s,r);
+    c.restore();
+    // their scream follows them through the air
+    if(r.mode==='flying' && r.y>1 && r.scream){
+      c.font='bold 15px Comic Sans MS'; c.textAlign='center';
+      c.strokeStyle='#1d2a44'; c.lineWidth=3.5;
+      c.strokeText(r.scream,X,Y-s*3.4);
+      c.fillStyle='#fff'; c.fillText(r.scream,X,Y-s*3.4);
+    }
+  }
+}
+
+function drawParticles(c){
+  for(const p of S.particles){
+    const X=W2SX(p.x), Y=W2SY(p.y);
+    if(p.type==='ring'){
+      c.strokeStyle='rgba(255,255,255,'+clamp(p.life/p.t0,0,1)*0.7+')';
+      c.lineWidth=1.5+3*(p.life/p.t0);
+      c.beginPath(); c.arc(X,Y,Math.max(p.r*VIEW.s,2),0,TAU); c.stroke();
+    }
+    else if(p.type==='chunk'){
+      c.save(); c.translate(X,Y); c.rotate(p.rot);
+      c.fillStyle='#6e4a22'; c.fillRect(-2.5,-2.5,5,5); c.restore();
+    }
+    else if(p.type==='blood'){ c.fillStyle='#c01515'; c.beginPath(); c.arc(X,Y,Math.max(p.r*VIEW.s,2),0,TAU); c.fill(); }
+    else if(p.type==='dust'){ c.fillStyle='rgba(160,140,110,'+clamp(p.life,0,0.8)+')'; c.beginPath(); c.arc(X,Y,5,0,TAU); c.fill(); }
+    else if(p.type==='spark'){ c.fillStyle=p.color; c.fillRect(X-2,Y-2,4,4); }
+    else if(p.type==='confetti'){ c.save(); c.translate(X,Y); c.rotate(p.rot); c.fillStyle=p.color; c.fillRect(-4,-2,8,4); c.restore(); }
+    else if(p.type==='limb'){
+      c.save(); c.translate(X,Y); c.rotate(p.rot);
+      if(p.kind==='head'){
+        c.fillStyle='#cfd8c4'; c.beginPath(); c.arc(0,0,8,0,TAU); c.fill();
+        c.fillStyle='#5a3b1e'; c.beginPath(); c.arc(0,-2,8,Math.PI,TAU); c.fill();
+        drawFace(c,0,1,6,'dead');
+        c.fillStyle='#c01515'; c.fillRect(-3,7,6,3);
+      } else {
+        c.strokeStyle=p.kind==='leg'?'#2c3e66':'#f5c89a'; c.lineWidth=5;
+        c.beginPath(); c.moveTo(-7,0); c.lineTo(7,0); c.stroke();
+        c.fillStyle='#c01515'; c.beginPath(); c.arc(-7,0,3,0,TAU); c.fill();
+      }
+      c.restore();
+    }
+  }
+}
+
+function drawTexts(c){
+  c.textAlign='center';
+  for(const t of S.texts){
+    c.globalAlpha=clamp(t.life/1.6,0,1);
+    c.font='bold '+t.size+'px Comic Sans MS';
+    c.strokeStyle='#1d2a44'; c.lineWidth=3;
+    c.strokeText(t.str,W2SX(t.x),W2SY(t.y));
+    c.fillStyle=t.color; c.fillText(t.str,W2SX(t.x),W2SY(t.y));
+  }
+  c.globalAlpha=1;
+}
+
+function drawAmbulance(c){
+  const a=S.ambulance; if(!a) return;
+  const X=W2SX(a.x), gy=W2SY(0), w=64, h=30;
+  c.save(); c.translate(X,gy);
+  c.fillStyle='#fff'; c.beginPath(); c.roundRect(-w/2,-h-8,w,h,5); c.fill();
+  c.strokeStyle='#1d2a44'; c.lineWidth=2; c.strokeRect(-w/2,-h-8,w,h);
+  c.fillStyle='#d8403f'; c.fillRect(-6,-h+2,12,4); c.fillRect(-2,-h-2,4,12);
+  c.fillStyle='#9adcff'; c.fillRect(-w/2+4,-h-4,14,10);
+  c.fillStyle=Math.sin(S.t*14)>0?'#ff3030':'#3060ff';
+  c.beginPath(); c.arc(0,-h-11,5,0,TAU); c.fill();
+  c.fillStyle='#222';
+  c.beginPath(); c.arc(-w/2+12,-6,7,0,TAU); c.arc(w/2-12,-6,7,0,TAU); c.fill();
+  c.restore();
+}
+
+function drawHint(c){
+  const X=W2SX(S.pod.x), Y=W2SY(S.pod.y), bob=Math.sin(S.t*4)*6;
+  c.font='bold 17px Comic Sans MS'; c.textAlign='center';
+  c.strokeStyle='#1d2a44'; c.lineWidth=4;
+  c.strokeText('⟵ GRAB & PULL EITHER WAY! ⟶',X+bob,Y-podPxR()-26);
+  c.fillStyle='#ffd23f';
+  c.fillText('⟵ GRAB & PULL EITHER WAY! ⟶',X+bob,Y-podPxR()-26);
+}
+
+function drawBunting(c,cw){
+  for(let x=10;x<cw;x+=42){
+    c.fillStyle=(x/42)%2<1?'#d8403f':'#ffd23f';
+    c.beginPath(); c.moveTo(x,0); c.lineTo(x+34,0); c.lineTo(x+17,18); c.fill();
+  }
+}
+
+function drawBanner(c,cw){
+  if(!S.banner) return;
+  c.save();
+  // springy pop-in
+  const bt=S.bannerT||0;
+  const pop=1+0.28*Math.exp(-4*bt)*Math.sin(bt*14);
+  c.translate(cw/2,56); c.scale(pop,pop); c.translate(-cw/2,-56);
+  c.shadowColor='rgba(0,0,0,.45)'; c.shadowBlur=8; c.shadowOffsetY=3;
+  c.textAlign='center';
+  c.font='bold 26px Comic Sans MS';
+  c.strokeStyle='#1d2a44'; c.lineWidth=6;
+  c.strokeText(S.banner,cw/2,52);
+  c.fillStyle='#ffd23f'; c.fillText(S.banner,cw/2,52);
+  if(S.bannerSub){
+    c.font='bold 14px Comic Sans MS';
+    c.strokeStyle='#1d2a44'; c.lineWidth=4;
+    c.strokeText(S.bannerSub,cw/2,74);
+    c.fillStyle='#fff'; c.fillText(S.bannerSub,cw/2,74);
+  }
+  c.restore();
+}
+
+/* ============================ FACE ============================ */
+function drawFace(c,x,y,r,face){
+  const ex=r*0.42, ey=-r*0.15;
+  c.lineWidth=Math.max(r*0.14,1.2); c.strokeStyle='#1d2a44'; c.fillStyle='#1d2a44';
+  // occasional blink for the living & calm
+  if(face==='happy' && ((S.t*0.6 + x*0.21 + y*0.13)%2.8) < 0.09){
+    c.beginPath();
+    c.moveTo(x-ex-r*0.14,y+ey); c.lineTo(x-ex+r*0.14,y+ey);
+    c.moveTo(x+ex-r*0.14,y+ey); c.lineTo(x+ex+r*0.14,y+ey); c.stroke();
+    c.beginPath(); c.arc(x,y+r*0.18,r*0.45,0.15*Math.PI,0.85*Math.PI); c.stroke();
+    return;
+  }
+  if(face==='happy'){
+    c.beginPath(); c.arc(x-ex,y+ey,r*0.12,0,TAU); c.arc(x+ex,y+ey,r*0.12,0,TAU); c.fill();
+    c.beginPath(); c.arc(x,y+r*0.18,r*0.45,0.15*Math.PI,0.85*Math.PI); c.stroke();
+  } else if(face==='scared'){
+    c.fillStyle='#fff'; c.beginPath(); c.arc(x-ex,y+ey,r*0.26,0,TAU); c.arc(x+ex,y+ey,r*0.26,0,TAU); c.fill();
+    c.fillStyle='#1d2a44'; c.beginPath(); c.arc(x-ex,y+ey,r*0.11,0,TAU); c.arc(x+ex,y+ey,r*0.11,0,TAU); c.fill();
+    c.beginPath(); c.ellipse(x,y+r*0.42,r*0.22,r*0.32,0,0,TAU); c.fill();
+  } else if(face==='pain'){
+    for(const sgn of [-1,1]){
+      c.beginPath(); c.moveTo(x+sgn*ex-r*0.16,y+ey-r*0.14); c.lineTo(x+sgn*ex+r*0.16,y+ey+r*0.14); c.stroke();
+      c.beginPath(); c.moveTo(x+sgn*ex-r*0.16,y+ey+r*0.14); c.lineTo(x+sgn*ex+r*0.16,y+ey-r*0.14); c.stroke();
+    }
+    c.beginPath(); c.moveTo(x-r*0.35,y+r*0.45); c.quadraticCurveTo(x,y+r*0.2,x+r*0.35,y+r*0.5); c.stroke();
+    c.fillStyle='#4aa3ff'; c.beginPath(); c.arc(x-ex-r*0.3,y+r*0.25,r*0.12,0,TAU); c.fill();
+  } else if(face==='dizzy'){
+    c.font='bold '+r*0.7+'px sans-serif'; c.textAlign='center';
+    c.fillText('@',x-ex,y+ey+r*0.25); c.fillText('@',x+ex,y+ey+r*0.25);
+    c.beginPath(); c.ellipse(x,y+r*0.45,r*0.2,r*0.14,0,0,TAU); c.stroke();
+  } else if(face==='ko'){
+    for(const sgn of [-1,1]){ c.beginPath(); c.moveTo(x+sgn*ex-r*0.18,y+ey); c.lineTo(x+sgn*ex+r*0.18,y+ey); c.stroke(); }
+    c.beginPath(); c.arc(x,y+r*0.42,r*0.14,0,TAU); c.stroke();
+  } else { // dead
+    for(const sgn of [-1,1]){
+      c.beginPath(); c.moveTo(x+sgn*ex-r*0.16,y+ey-r*0.16); c.lineTo(x+sgn*ex+r*0.16,y+ey+r*0.16); c.stroke();
+      c.beginPath(); c.moveTo(x+sgn*ex-r*0.16,y+ey+r*0.16); c.lineTo(x+sgn*ex+r*0.16,y+ey-r*0.16); c.stroke();
+    }
+    c.fillStyle='#ff7d9c'; c.fillRect(x-r*0.1,y+r*0.3,r*0.22,r*0.3);
+  }
+}
+
+/* ============================ GRAPH ============================ */
+function drawGraph(){
+  const c=gctx, w=graph.width, h=graph.height;
+  c.clearRect(0,0,w,h);
+  const L=46, Rm=70, T=14, B=22, pw=w-L-Rm, ph=h-T-B;
+  const t1=Math.max(S.t,12), t0=t1-12;
+  const gMax=Math.max(14, S.maxG*1.15);
+  const kMax=S.Tmax*1.6/1000;
+  const X=t=> L+(t-t0)/12*pw;
+  const Yg=g=> T+ph-(clamp(g,0,gMax)/gMax)*ph;
+  const Yk=k=> T+ph-(clamp(k,0,kMax)/kMax)*ph;
+  // grid
+  c.strokeStyle='rgba(255,255,255,.08)'; c.lineWidth=1;
+  for(let g=0;g<=gMax;g+=5){ c.beginPath(); c.moveTo(L,Yg(g)); c.lineTo(L+pw,Yg(g)); c.stroke(); }
+  c.fillStyle='#8ea4cc'; c.font='11px sans-serif'; c.textAlign='right';
+  for(let g=0;g<=gMax;g+=5) c.fillText(g+'g',L-5,Yg(g)+4);
+  // danger G line
+  c.strokeStyle='#ff5050'; c.setLineDash([6,5]); c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(L,Yg(9)); c.lineTo(L+pw,Yg(9)); c.stroke();
+  c.fillStyle='#ff5050'; c.textAlign='left'; c.fillText('DANGER G',L+4,Yg(9)-4);
+  // rope limit line
+  c.strokeStyle='#37d6e8';
+  c.beginPath(); c.moveTo(L,Yk(S.Tmax/1000)); c.lineTo(L+pw,Yk(S.Tmax/1000)); c.stroke();
+  c.fillText('ROPE LIMIT',L+90,Yk(S.Tmax/1000)-4);
+  c.setLineDash([]);
+  // series
+  if(S.series.length>1){
+    c.strokeStyle='#37d6e8'; c.lineWidth=1.6; c.beginPath();
+    S.series.forEach((p,i)=> i?c.lineTo(X(p.t),Yk(p.kN)):c.moveTo(X(p.t),Yk(p.kN))); c.stroke();
+    c.strokeStyle='#ffb02e'; c.lineWidth=2.4; c.beginPath();
+    S.series.forEach((p,i)=> i?c.lineTo(X(p.t),Yg(p.g)):c.moveTo(X(p.t),Yg(p.g))); c.stroke();
+  }
+  // legend + max G readout
+  c.font='bold 12px sans-serif'; c.textAlign='left';
+  c.fillStyle='#ffb02e'; c.fillText('— G-force',L+pw+8,T+14);
+  c.fillStyle='#37d6e8'; c.fillText('— rope kN',L+pw+8,T+30);
+  c.fillStyle=S.maxG>9?'#ff5050':'#fff';
+  c.font='bold 17px Comic Sans MS';
+  c.fillText('MAX',L+pw+8,T+58);
+  c.fillText(S.maxG.toFixed(1)+'g',L+pw+8,T+78);
+  c.fillStyle='#8ea4cc'; c.font='11px sans-serif'; c.textAlign='center';
+  c.fillText('last 12 seconds',L+pw/2,h-7);
+}
+
+/* ============================ RIDER CONDITION PANEL ============================ */
+function drawBodies(){
+  const c=bctx, w=bodies.width;
+  c.clearRect(0,0,w,bodies.height);
+  S.riders.forEach((r,i)=>{
+    const y0=i*148+3;
+    // card
+    c.fillStyle='#fff'; c.strokeStyle='#1d2a44'; c.lineWidth=2.5;
+    c.beginPath(); c.roundRect(3,y0,w-6,142,10); c.fill(); c.stroke();
+    drawBodyFigure(c,52,y0+71,r);
+    // dead? skull & crossbones overlay
+    if(r.face==='dead'){ c.font='24px sans-serif'; c.textAlign='right'; c.fillText('☠️',w-12,y0+30); }
+    if(r.mode==='taken'){ c.font='16px sans-serif'; c.textAlign='right'; c.fillText('🚑',w-12,y0+52); }
+    // info (text column starts right of the figure zone)
+    const tx=110;
+    c.textAlign='left';
+    c.fillStyle='#1d2a44'; c.font='bold 16px Comic Sans MS';
+    c.fillText(r.name,tx,y0+24);
+    c.font='11px sans-serif'; c.fillStyle='#777';
+    c.fillText('Neck tolerance: '+r.tol.toFixed(1)+'g',tx,y0+40);
+    c.fillText(r.belted?'🔗 belted':'⚠️ NO BELT',tx,y0+54);
+    const worst=Math.max(r.dmg.head,r.dmg.neck,r.dmg.torso,r.dmg.arms,r.dmg.legs);
+    c.font='bold 11px Comic Sans MS';
+    c.fillStyle = r.face==='dead'?'#7a0d0d': worst>=2?'#d8403f': worst===1?'#e8632c':'#1d7a36';
+    wrapText(c,r.status,tx,y0+72,w-tx-32,13,3);
+    // damage pips
+    const parts=['head','neck','torso','arms','legs'];
+    c.font='9px sans-serif';
+    parts.forEach((pt,j)=>{
+      const px=tx+j*31;
+      c.fillStyle=['#3fae5a','#e8a33d','#d8403f','#7a0d0d'][r.dmg[pt]];
+      c.beginPath(); c.arc(px+8,y0+118,5,0,TAU); c.fill();
+      c.fillStyle='#777'; c.textAlign='center'; c.fillText(pt,px+8,y0+132);
+    });
+    c.textAlign='left';
+  });
+}
+
+function wrapText(c,txt,x,y,maxW,lh,maxLines){
+  maxLines=maxLines||99;
+  const words=txt.split(' '); let line=''; let n=0;
+  for(const wd of words){
+    if(c.measureText(line+wd).width>maxW && line){
+      n++;
+      if(n>=maxLines){ // out of room: ellipsize and stop
+        while(line && c.measureText(line+'…').width>maxW) line=line.slice(0,-1);
+        c.fillText(line+'…',x,y); return;
+      }
+      c.fillText(line,x,y); line=wd+' '; y+=lh;
+    }
+    else line+=wd+' ';
+  }
+  c.fillText(line,x,y);
+}
+
+function dmgCol(level,base){ return [base,'#e8a33d','#d8403f','#7a0d0d'][level]; }
+
+function drawBodyFigure(c,x,y,r){
+  const dead=r.face==='dead';
+  const skin=dead?'#cfd8c4':'#f5c89a';
+  // legs
+  c.lineWidth=7; c.lineCap='round';
+  for(const sgn of [-1,1]){
+    if(r.dmg.legs===3){
+      c.strokeStyle='#7a0d0d';
+      c.beginPath(); c.moveTo(x+sgn*6,y+22); c.lineTo(x+sgn*8,y+30); c.stroke();
+      // detached leg lying at card bottom
+      c.strokeStyle='#2c3e66';
+      c.beginPath(); c.moveTo(x-22+sgn*8,y+50); c.lineTo(x-6+sgn*8,y+46); c.stroke();
+      c.fillStyle='#c01515'; c.beginPath(); c.arc(x-22+sgn*8,y+50,3.5,0,TAU); c.fill();
+    } else {
+      c.strokeStyle=dmgCol(r.dmg.legs,'#2c3e66');
+      c.beginPath(); c.moveTo(x+sgn*6,y+22); c.lineTo(x+sgn*10,y+46); c.stroke();
+    }
+  }
+  // arms
+  c.lineWidth=6;
+  for(const sgn of [-1,1]){
+    if(r.dmg.arms===3){
+      c.strokeStyle='#7a0d0d';
+      c.beginPath(); c.moveTo(x+sgn*11,y-8); c.lineTo(x+sgn*15,y-3); c.stroke();
+      c.strokeStyle=skin;
+      c.beginPath(); c.moveTo(x+28*sgn,y+34); c.lineTo(x+38*sgn,y+40); c.stroke();
+      c.fillStyle='#c01515'; c.beginPath(); c.arc(x+28*sgn,y+34,3,0,TAU); c.fill();
+    } else {
+      c.strokeStyle=r.dmg.arms>0?dmgCol(r.dmg.arms,skin):skin;
+      const up=r.face==='happy'?-26:14;
+      c.beginPath(); c.moveTo(x+sgn*11,y-8); c.lineTo(x+sgn*20,y+up); c.stroke();
+    }
+  }
+  // torso
+  c.fillStyle=r.shirt;
+  c.beginPath(); c.roundRect(x-13,y-12,26,36,7); c.fill();
+  if(r.dmg.torso>=2){
+    c.strokeStyle='#7a0d0d'; c.lineWidth=2.5;
+    c.beginPath(); c.moveTo(x-10,y-4); c.lineTo(x-2,y+2); c.lineTo(x-8,y+8); c.lineTo(x+2,y+14); c.stroke();
+  }
+  // neck
+  c.fillStyle=dmgCol(r.dmg.neck,skin);
+  c.fillRect(x-4,y-19,8,9);
+  if(r.dmg.neck===1){ c.fillStyle='#fff'; c.fillRect(x-6,y-18,12,6); c.strokeStyle='#aaa'; c.lineWidth=1; c.strokeRect(x-6,y-18,12,6); }
+  // head
+  c.save(); c.translate(x,y-31);
+  if(r.dmg.neck>=2) c.rotate(0.55);
+  if(r.dmg.head===3){
+    // decapitated: head sits beside figure
+    c.restore();
+    c.fillStyle='#c01515'; c.beginPath(); c.ellipse(x,y-19,7,4,0,0,TAU); c.fill();
+    c.save(); c.translate(x+34,y+44); c.rotate(0.8);
+  }
+  c.fillStyle=skin; c.beginPath(); c.arc(0,0,13,0,TAU); c.fill();
+  c.fillStyle=r.hairC||'#5a3b1e'; c.beginPath(); c.arc(0,-3,13,Math.PI,TAU); c.fill();
+  drawFace(c,0,2,10,r.face);
+  c.restore();
+  // blood drips for any detached part
+  if(r.dmg.legs===3||r.dmg.arms===3||r.dmg.head===3){
+    c.fillStyle='rgba(192,21,21,.7)';
+    c.beginPath(); c.ellipse(x,y+52,20,4,0,0,TAU); c.fill();
+  }
+}
+
+/* ============================ MAIN LOOP ============================ */
+let lastT = performance.now();
+function frame(now){
+  const dt = Math.min(0.05,(now-lastT)/1000); lastT=now;
+  computeView();
+  // flight plays back 3x faster (trajectory & G identical — just less waiting)
+  tick(dt * (S.phase==='flying' ? cfg.timeScale : S.phase==='winch' ? 2 : 1));
+  drawScene();
+  drawGraph();
+  drawBodies();
+  updateStats();
+  requestAnimationFrame(frame);
+}
+refreshLabels();
+resetGame();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
