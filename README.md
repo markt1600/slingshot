@@ -16,6 +16,19 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 ## Improvements
 
+Latest visual pass:
+
+- A 24-cabin Ferris wheel turns once every 110 simulation seconds; cabins remain upright, support legs stay fixed, and the base is partially hidden by trees.
+- A five-car coaster train follows the photographed upper rail. Each car rotates with the track slope, climbs slowly, and accelerates over the hills before returning out of view.
+- Balloons use a tapered latex silhouette, soft sky reflections, warm edge lighting, tied necks, and flexible strings. Their collision centers and popping behavior are preserved.
+
+- Four distinct photographic-style adult riders with animated arm and leg layers; clothing, faces, and skin remain visible in the condition panel.
+- A photographed steel capsule cage with dynamic seats and harnesses, and a realistic ambulance sprite with moving wheel highlights, flashing lights, and readable markings in both travel directions.
+- Smaller directional blood droplets, irregular ground stains that darken with age, shaded detached parts, and localized injury marks, replacing the original bright circular effects.
+- Actual cloud imagery drifts across the sky. Five isolated foliage regions sway with an irregular gust cycle, while ride structures and terrain remain stationary. Environment animation respects reduced-motion preferences and freezes with the simulation pause.
+- Procedural fallbacks keep the ride visible if a sprite fails to load. Assets require no external services.
+
+
 - Locally bundled photographic-style park environment generated with the built-in image generation tool; layered steel lattice towers, braided cords, reflective capsule, natural rider silhouettes, and restrained lighting.
 - A 240 Hz fixed simulation step for physics, riders, collisions, and accident timing, independent of display refresh rate. Background tabs do not accumulate catch-up time.
 - Tension-only elastic cords with velocity-dependent damping and mild strain hardening. Slack cords cannot push the capsule.
@@ -27,7 +40,7 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 - Pointer cancellation safely resets the pull. Configuration controls are disabled during a ride, including for keyboard input.
 - Separate HTML, CSS, and JavaScript files; no runtime third-party libraries.
 
-This remains a 2D arcade game with deliberately exaggerated accident and injury rules, not an engineering ride-safety model. The scenery is photographic-style; the moving objects are procedural Canvas graphics, not photorealistic 3D models. The background image is decorative; the foreground ride, riders, balloons, particles, and telemetry are simulated.
+This remains a 2D arcade game with deliberately exaggerated accident and injury rules, not an engineering ride-safety model. The scenery, four riders, ambulance, and capsule use locally bundled photographic-style images, combined with articulated Canvas layers, harnesses, vehicle lights, wheels, and injury effects. This is a 2D sprite renderer rather than a 3D model renderer. The background image is decorative; the foreground ride, riders, balloons, particles, and telemetry are simulated.
 
 ## Tests
 
@@ -42,6 +55,8 @@ Verified in headless Chrome on desktop and at a 390 px mobile viewport. Other br
 - `index.html` — game controls and layout
 - `style.css` — visual design and responsive rules
 - `game.js` — simulation, rendering, and audio
-- `assets/park.png` — bundled environment image
+- `assets/park-animated.png` — environment plate with the static Ferris wheel removed
+- `assets/park.png` — original environment reference
 - `assets/PROVENANCE.md` — generation method and full image prompt
 - `tests/browser.cjs` — regression suite
+- `tests/rendering.cjs` — sprite/material inspection, all injury states, and cloud/tree motion checks
