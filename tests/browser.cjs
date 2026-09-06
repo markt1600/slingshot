@@ -2,6 +2,14 @@ const {chromium}=require('playwright');const path=require('node:path');const {pa
 const root=path.resolve(__dirname,'..');fs.mkdirSync(path.join(root,'test-results'),{recursive:true});const assert=require('node:assert/strict');
 (async()=>{const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});const page=await browser.newPage({viewport:{width:1500,height:1000}});let errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(pathToFileURL(path.join(root,'index.html')).href);await page.evaluate(()=>{paused=true;ui.snd.checked=false;});
 console.log(await page.evaluate(()=>{const results=[];for(const h of [20,45,100,200])for(const n of [1,4])for(const pull of [5,25]){ui.height.value=h;ui.riders.value=n;ui.acc.value=0;ui.rope.value=300;resetGame();computeView();for(let i=0;i<800;i++)tick(1/240);S.pod.x=Math.min(pull,.95*h);S.phase='dragging';tick(1/240);release();let i=0;for(;i<240*90&&S.phase!=='done';i++){tick(1/240);if(!Number.isFinite(S.pod.x+S.pod.y+S.feltG))throw Error('non-finite');}if(S.phase!=='done')throw Error('Ride did not settle');results.push({h,n,pull,phase:S.phase,seconds:i/240,maxG:S.maxG.toFixed(1)});}return results;}));
+console.log('camera',await page.evaluate(()=>{
+  resetGame();computeView();const scale=VIEW.s,ox=VIEW.ox,oy=VIEW.oy;
+  S.riders.forEach(r=>r.mode='seated');S.phase='dragging';release();
+  S.pod.x=300;S.pod.y=500;
+  for(let i=0;i<120;i++)tick(1/240);computeView();
+  if(VIEW.s!==scale||VIEW.ox!==ox||VIEW.oy!==oy)throw Error('Camera changed after release');
+  return 'Fixed scene scale after release passed';
+}));
 console.log('cord tests',await page.evaluate(()=>{ui.height.value=45;resetGame();const slack=cordForce(0,S.H),stretch=cordForce(20,10),out=cordForce(20,10,10,0),inward=cordForce(20,10,-10,0);if(slack.T.some(t=>t!==0)||out.T[0]<=stretch.T[0]||inward.T[0]>=stretch.T[0])throw Error('cord force');return 'passed';}));
 console.log('failure scenarios',await page.evaluate(()=>{
   const results=[];for(const h of [45,200])for(const chute of [false,true]){

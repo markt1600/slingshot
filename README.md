@@ -18,6 +18,9 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 Latest visual pass:
 
+- Dimensional enamel-style title lettering, a slingshot emblem, and a framed midway sign treatment that adapts to mobile.
+- Nine-cell parachutes inflate progressively, bank in the wind, and ripple along the trailing edge. Suspension lines stay connected to the rider, and landed canopies collapse onto the ground.
+
 - Polished setup labels, action prompts, incident warnings, rider reports, and results. Event chips are capped and deduplicated to reduce visual noise; ride status changes are announced politely to screen readers.
 
 - A 24-cabin Ferris wheel turns once every 110 simulation seconds; cabins remain upright, support legs stay fixed, and the base is partially hidden by trees.
@@ -36,7 +39,7 @@ Latest visual pass:
 - Tension-only elastic cords with velocity-dependent damping and mild strain hardening. Slack cords cannot push the capsule.
 - Ground restitution, friction impulses, and a low-speed rest threshold reduce endless micro-bounces.
 - Rider/pod collision impulses conserve linear momentum using actual masses. Collision radii no longer depend on visual enlargement of the capsule.
-- Ejected riders inherit current pod velocity; pod mass decreases when a rider leaves. The camera expands to accommodate distant trajectories instead of artificially capping ejection velocity.
+- Ejected riders inherit current pod velocity; pod mass decreases when a rider leaves. The camera stays at its setup scale throughout the ride, preventing the foreground from shrinking against a fixed background. Extreme trajectories can leave the viewport; telemetry continues to track the capsule.
 - Parachutes inflate over 0.85 seconds and apply quadratic drag toward a roughly 5.5 m/s descent, replacing the old 15 m/s speed limiter.
 - New live speed, altitude, peak altitude, pause, playback speed, aiming preview, keyboard controls, and responsive layout.
 - Pointer cancellation safely resets the pull. Configuration controls are disabled during a ride, including for keyboard input.

@@ -89,3 +89,32 @@
 .box h2{text-transform:uppercase}
 #statusLine{font-weight:500;line-height:1.6;text-align:left;border-top:1px solid #d4ded5;padding-top:12px}
 .toolbar .help{line-height:1.5}
+
+/* A dimensional midway sign: warm enamel lettering on a brushed dark panel. */
+#titleBar{
+  position:relative;isolation:isolate;container-type:inline-size;
+  display:flex;align-items:center;gap:20px;overflow:hidden;
+  padding:20px 26px 23px;border:1px solid #a28d634f;border-radius:12px;
+  background:radial-gradient(ellipse at 28% -40%,#b48c4930,transparent 65%),
+    repeating-linear-gradient(0deg,#ffffff02 0 1px,transparent 1px 4px),
+    linear-gradient(115deg,#1c343c,#112731 75%);
+  box-shadow:inset 0 1px 0 #f0d5a426,inset 0 -2px 0 #081a2380,0 12px 24px #07171e30;
+}
+#titleBar:before{content:"";position:absolute;inset:6px;border:1px solid #cab78b20;border-radius:7px;pointer-events:none;z-index:-1}
+#titleBar:after{content:"";position:absolute;right:66px;top:-90px;width:240px;height:240px;border:1px solid #dcc3940c;border-radius:50%;box-shadow:0 0 0 17px #dcc39405,0 0 0 48px #dcc39403;z-index:-1}
+.brandEmblem{width:46px;flex:none;color:#c5aa76;filter:drop-shadow(0 3px 0 #071b23)}
+.brandEmblem svg{display:block;width:100%;height:auto}
+.brandWords{min-width:0}
+#titleBar h1{display:flex;flex-direction:column;align-items:flex-start;margin:0;font-weight:900;line-height:.91;letter-spacing:0;text-shadow:none}
+.brandMega{font-family:system-ui,sans-serif;font-size:12px;line-height:1;letter-spacing:.5em;color:#e0a66b;margin:0 0 7px 3px;font-weight:750}
+.brandSlingshot{display:block;padding-right:.1em;font-family:Impact,"Arial Narrow","Helvetica Neue",sans-serif;font-stretch:condensed;font-size:clamp(36px,9cqw,68px);font-style:italic;font-weight:900;letter-spacing:.005em;color:#f4dfaf;
+  background:linear-gradient(180deg,#fff3d2 0%,#f5dca4 43%,#bda474 48%,#f0d397 53%,#d9b573 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 1px 0 #fff0bf50) drop-shadow(1px 3px 0 #745331) drop-shadow(0 5px 0 #071c25);
+}
+#titleBar .tag{margin:13px 0 0 3px;font-family:Georgia,"Times New Roman",serif;font-style:italic;font-size:13px;line-height:1.4;letter-spacing:.25px;color:#bac4b9;text-shadow:none}
+.brandMotto{margin-left:auto;padding:5px 0 5px 18px;border-left:1px solid #c5ac783b;display:flex;flex-direction:column;gap:4px;flex:none;transform:rotate(-4deg)}
+.brandMotto span,.brandMotto strong{font-family:Georgia,serif;font-style:italic;font-size:15px;font-weight:400;line-height:1.15;color:#9aaea9}
+.brandMotto strong{color:#e3c38e}
+@media(max-width:1250px) and (min-width:1101px){.brandMotto{display:none}}
+@media(max-width:600px){#titleBar{gap:13px;padding:19px 18px 21px}.brandEmblem{width:31px}.brandMotto{display:none}.brandMega{font-size:10px;letter-spacing:.4em}#titleBar .tag{font-size:11px;margin-top:11px}.brandSlingshot{font-size:clamp(34px,11cqw,54px)}}

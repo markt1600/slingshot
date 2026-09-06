@@ -29,10 +29,16 @@
     <button id="resetBtn">Reset ride</button>
   </div>
   <div id="gameCol">
-    <div id="titleBar">
-      <h1>MEGA SLINGSHOT</h1>
-      <span class="tag">CARNIVAL OF QUESTIONABLE SAFETY · TAKE YOUR CHANCES</span>
-    </div>
+    <header id="titleBar">
+      <div class="brandEmblem" aria-hidden="true">
+        <svg viewBox="0 0 56 72" fill="none"><path d="M8 9 28 29 48 9M28 29v32" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="m8 9 20 35L48 9" stroke="#aabbb5" stroke-width="1.5"/><circle cx="28" cy="44" r="5" fill="#efb574"/><path d="M10 68h36" stroke="currentColor" stroke-width="1"/></svg>
+      </div>
+      <div class="brandWords">
+        <h1><span class="brandMega">MEGA</span><span class="brandSlingshot">SLINGSHOT</span></h1>
+        <span class="tag">Carnival of questionable safety</span>
+      </div>
+      <div class="brandMotto" aria-hidden="true"><span>Pull.</span><span>Release.</span><strong>Hold on.</strong></div>
+    </header>
     <div class="toolbar"><button id="pauseBtn" type="button">Pause</button><label>Playback <select id="speedSl"><option value="0.5">0.5× Slow</option><option value="1" selected>1× Real time</option><option value="3">3× Arcade</option></select></label><button id="previewBtn" aria-pressed="true">Flight path: on</button><span class="help">Drag to aim · Release to launch · Space to pause · R to reset</span></div>
     <canvas id="scene" width="960" height="540" tabindex="0" aria-label="Slingshot ride. Drag the pod to aim and release to launch. Use arrow keys to aim and Enter to launch."></canvas>
     <div id="flightHud"><span>RIDE STATUS<b id="phaseRead">BOARDING</b></span><span>SPEED<b id="speedRead">0 km/h</b></span><span>ALTITUDE<b id="altRead">10 m</b></span><span>PEAK ALTITUDE<b id="peakRead">10 m</b></span></div>

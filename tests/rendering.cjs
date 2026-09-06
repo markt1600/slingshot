@@ -74,6 +74,18 @@ const root=path.resolve(__dirname,'..');
       for(let i=0;i<4;i++){c.save();c.translate(100+i*240-144*3,420-240*3);c.scale(3,3);drawRealisticBalloon(c,{f:.15,ph:0,prog:320,c:['#bd5950','#4f74ad','#c9ab55','#6c9460'][i],popped:false},0);c.restore();}
     });
     await page.locator('#renderQA').screenshot({path:path.join(root,'test-results/park-animation.png')});
+    const canopyFrame=async(time)=>{
+      await page.evaluate(time=>{
+        const c=document.querySelector('#renderQA').getContext('2d');c.clearRect(0,0,1100,620);c.fillStyle='#849796';c.fillRect(0,0,1100,620);S.t=time;
+        for(let i=0;i<4;i++){
+          c.save();c.translate(150+i*250,250);c.scale(3,3);
+          drawParachute(c,0,0,{seat:i,vx:3,chuteInflation:[.15,.55,1,1][i],chuteLanded:i===3});c.restore();
+        }
+      },time);
+      return page.locator('#renderQA').screenshot();
+    };
+    assert(!(await canopyFrame(1)).equals(await canopyFrame(1.5)),'canopy fabric must move in the wind');
+    await page.locator('#renderQA').screenshot({path:path.join(root,'test-results/parachutes.png')});
     assert.deepEqual(errors,[]);
     console.log('PASS: character/vehicle materials, all injury levels, detached parts, blood, cloud drift, foliage sway, reduced motion, Ferris wheel, coaster train and balloons.');
   }finally{await browser.close();}

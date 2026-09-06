@@ -192,7 +192,7 @@ function computeView(){
   const Heff=Math.max(H,55);   // fixed zoom below 55 m → taller towers really LOOK taller
   // constant 68 m of sky above the tower (not proportional!) so the tower keeps growing on screen
   const wx0=-(0.74*Heff+14), wx1=0.74*Heff+14, top=Heff+68;
-  const s = Math.min(cw/(wx1-wx0), (ch-26)/top, S.flightScale||Infinity);
+  const s = Math.min(cw/(wx1-wx0), (ch-26)/top);
   const ox = cw/2 - s*(wx0+wx1)/2;
   const oy = ch - 22;
   VIEW={s,ox,oy};
@@ -431,11 +431,6 @@ function physStep(dt){
 
 function tick(dt){
   const podX0=S.pod.x, podY0=S.pod.y;   // pod path start (for collision interpolation)
-  if(S.phase==='flying'||S.phase==='awaitBodies'){
-    const tracked=[S.pod,...S.riders.filter(r=>r.mode==='flying')];
-    const extent=Math.max(1,...tracked.map(p=>Math.abs(p.x)+12)), altitude=Math.max(1,...tracked.map(p=>p.y+18));
-    S.flightScale=Math.min(S.flightScale||Infinity,(SW/2-24)/extent,(SH-105)/altitude);
-  }
   computeView();
   S.t+=dt; S.ferris+=dt*0.25; S.bannerT+=dt;
   S.shake=Math.max(0,S.shake-dt*22);
@@ -1568,7 +1563,7 @@ function drawTowersAndCords(c){
 
 function drawBoarders(c){for(const r of S.riders)if(r.mode==='boarding')drawPerson(c,W2SX(r.x),W2SY(r.y)-8,3.5,r,0);}
 function drawFlyingRiders(c){for(const r of S.riders){if(!['flying','landed'].includes(r.mode))continue;const X=W2SX(r.x),Y=W2SY(r.y),sz=5;
-  if(r.chuteOpen||r.chuteLanded){const width=22*(r.chuteLanded?.6:Math.max(.2,r.chuteInflation||.2));c.strokeStyle='#d6d4bb';c.lineWidth=.7;for(let j=-1;j<=1;j+=.5){c.beginPath();c.moveTo(X+j*width,Y-32);c.lineTo(X,Y);c.stroke();}const g=c.createLinearGradient(X-width,Y-47,X+width,Y-30);g.addColorStop(0,'#b8b1a0');g.addColorStop(.5,'#efe0bb');g.addColorStop(1,'#92705a');c.fillStyle=g;c.beginPath();c.ellipse(X,Y-32,width,15,0,Math.PI,TAU);c.fill();}
+  if(r.chuteOpen||r.chuteLanded)drawParachute(c,X,Y,r);
   c.save();c.translate(X,Y);c.rotate(-r.rot);drawPerson(c,0,-3,sz,r,r.mode==='flying'?1:0);c.restore();
 }}
 function drawTrail(c){if(S.trail.length<2)return;c.strokeStyle='rgba(233,235,214,.2)';c.lineWidth=1;c.beginPath();S.trail.forEach((p,i)=>i?c.lineTo(W2SX(p.x),W2SY(p.y)):c.moveTo(W2SX(p.x),W2SY(p.y)));c.stroke();}
@@ -2006,6 +2001,52 @@ function drawRealisticBalloon(c,b,time=S.t){
   c.fillStyle='rgba(247,249,232,.6)';c.beginPath();c.ellipse(-2.8,-5,.65,1.45,.5,0,TAU);c.fill();c.restore();
   c.fillStyle=b.c;c.beginPath();c.moveTo(0,9);c.lineTo(-1.2,11);c.quadraticCurveTo(0,11.5,1.2,11);c.closePath();c.fill();
   c.strokeStyle='rgba(73,55,40,.55)';c.lineWidth=.5;c.beginPath();c.moveTo(-.6,9.8);c.lineTo(.6,9.8);c.stroke();c.restore();
+}
+
+function drawParachute(c,X,Y,r){
+  const phase=(r.seat||0)*1.7,time=S.t;
+  const wind=Math.sin(time*1.2+phase)*.8+Math.sin(time*2.9+phase)*.22;
+  const inflation=r.chuteLanded?0:clamp(r.chuteInflation||.05,.05,1);
+  c.save();
+  if(r.chuteLanded){
+    // Slack nylon pools beside the rider. Small ripples move, but it no longer floats.
+    const gy=W2SY(.1);c.translate(X+12,gy);
+    for(let i=0;i<9;i++){
+      const x=-17+i*4,y=-1.5-Math.sin(i*1.9+phase)*1.4;
+      c.fillStyle=surfaceGradient(c,0,y-3,0,2,[[0,i===2||i===6?'#b4774f':'#d4c9ac'],[1,'#777664']]);
+      c.beginPath();c.moveTo(x,1);c.quadraticCurveTo(x+1,y-2+wind*.3,x+3,y);c.lineTo(x+6,1.3);c.closePath();c.fill();
+    }
+    c.strokeStyle='rgba(187,181,151,.5)';c.lineWidth=.4;
+    for(let i=0;i<4;i++){c.beginPath();c.moveTo(-12+i*4,0);c.quadraticCurveTo(-19,-1+i,-24+i*2,0);c.stroke();}
+    c.restore();return;
+  }
+  // A pressurized nine-cell wing banks gently while the load remains below it.
+  const width=23*(.18+.82*inflation),height=11*(.3+.7*inflation);
+  const tilt=clamp((r.vx||0)*.012,-.18,.18)+wind*.035;
+  const centerX=X+wind*1.1,centerY=Y-19-15*inflation;
+  const top=x=>-height*Math.sqrt(Math.max(0,1-(x/width)**2));
+  const edge=x=>2.3+2.1*(x/width)**2+Math.sin(time*6+x*.45+phase)*(.25+.25*(1-inflation));
+  const world=(x,y)=>[centerX+x*Math.cos(tilt)-y*Math.sin(tilt),centerY+x*Math.sin(tilt)+y*Math.cos(tilt)];
+  c.lineWidth=.45;c.strokeStyle='rgba(230,222,192,.75)';
+  for(let i=0;i<=8;i++){
+    const x=lerp(-width,width,i/8),[ax,ay]=world(x,edge(x));
+    c.beginPath();c.moveTo(ax,ay);c.lineTo(X+(i<4?-2.5:2.5),Y-3);c.stroke();
+  }
+  c.translate(centerX,centerY);c.rotate(tilt);
+  for(let i=0;i<9;i++){
+    const x0=lerp(-width,width,i/9),x1=lerp(-width,width,(i+1)/9),mid=(x0+x1)/2;
+    const panel=surfaceGradient(c,x0,0,x1,0,[[0,'#9b927b'],[.25,i===2||i===6?'#d5a06c':'#f0e4c6'],[.65,i===2||i===6?'#b97e50':'#d7cbb0'],[1,'#a39c85']]);
+    c.fillStyle=panel;c.beginPath();c.moveTo(x0,edge(x0));c.lineTo(x0,top(x0));
+    c.quadraticCurveTo(mid,top(mid)-.7,x1,top(x1));c.lineTo(x1,edge(x1));
+    c.quadraticCurveTo(mid,edge(mid)+.45,x0,edge(x0));c.closePath();c.fill();
+    // Dark lower air cells and reinforced vertical seams give the canopy volume.
+    c.fillStyle='rgba(74,72,58,.38)';c.beginPath();c.ellipse(mid,edge(mid)-.15,Math.max(.15,(x1-x0)*.34),.9*inflation,0,0,TAU);c.fill();
+    c.strokeStyle='rgba(91,88,70,.42)';c.lineWidth=.4;c.beginPath();c.moveTo(x0,top(x0));c.lineTo(x0,edge(x0));c.stroke();
+    c.strokeStyle='rgba(255,244,212,.55)';c.lineWidth=.45;c.beginPath();c.moveTo(x0,top(x0));c.quadraticCurveTo(mid,top(mid)-.7,x1,top(x1));c.stroke();
+  }
+  c.strokeStyle='#beb396';c.lineWidth=.65;c.beginPath();
+  for(let i=0;i<=30;i++){const x=lerp(-width,width,i/30);i?c.lineTo(x,edge(x)):c.moveTo(x,edge(x));}c.stroke();
+  c.restore();
 }
 
 /* ============================ MAIN LOOP ============================ */
