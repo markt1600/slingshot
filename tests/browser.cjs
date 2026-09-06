@@ -29,19 +29,19 @@ console.log('real-time motion',await page.evaluate(()=>{
   return {frames:result,fallSpeedAfterOneSecond:rider.vy};
 }));
 console.log('empty capsule recovery',await page.evaluate(()=>{
-  const run=(landed,snapped)=>{
-    ui.height.value=45;ui.riders.value=2;ui.acc.value=0;ui.rope.value=300;resetGame();ui.snd.checked=false;
-    S.riders.forEach(r=>{r.mode=landed?'landed':'flying';r.x=100;r.y=100;});
-    S.phase='dragging';release();S.snapped=[snapped,snapped];S.pod={x:15,y:snapped?cfg.podR:8,vx:12,vy:0};
-    const start=S.t;let slowAt=null;for(let i=0;i<240*30&&S.phase==='flying';i++){S.t+=1/240;physStep(1/240);checkSettle(1/240);if(slowAt===null&&Math.hypot(S.pod.vx,S.pod.vy)<1.6)slowAt=S.t-start;}
-    return {elapsed:S.t-start,slowAt,speed:Math.hypot(S.pod.vx,S.pod.vy),phase:S.phase};
-  };
-  const recovery=run(true,true),normal=run(false,true);
-  if(recovery.phase==='flying'||recovery.slowAt>=normal.slowAt)throw Error('Ground recovery did not finish sooner');
-  const attached=run(true,false);if(attached.phase==='flying')throw Error('Attached empty capsule failed to settle');
-  resetGame();S.riders.forEach(r=>r.mode='landed');S.riders[0].mode='flying';if(allRidersGrounded())throw Error('Recovery starts before last rider lands');
-  S.riders[0].mode='seated';if(allRidersGrounded())throw Error('Recovery brakes occupied capsule');
-  return {grounded:recovery,normal,attached};
+  const results=[];
+  for(const snapped of [false,true])for(const y of [8,150]){
+    ui.height.value=200;ui.riders.value=2;ui.acc.value=0;ui.rope.value=300;resetGame();ui.snd.checked=false;
+    S.riders.forEach(r=>{r.mode='landed';r.x=10;r.y=.5;});S.phase='dragging';release();
+    S.plan.snap=false;S.snapped=[snapped,snapped];S.pod={x:20,y,vx:12,vy:20};
+    let elapsed=0;while(S.phase!=='done'&&elapsed<10){tick(1/240);elapsed+=1/240;}
+    if(S.phase!=='done')throw Error('Empty capsule cleanup did not complete');
+    if(!snapped&&elapsed>1.5)throw Error('Attached recovery exceeded time bound');
+    results.push({snapped,y,elapsed});
+  }
+  resetGame();S.riders.forEach(r=>r.mode='landed');S.riders[0].mode='flying';if(allRidersGrounded())throw Error('Early recovery');
+  S.riders[0].mode='seated';if(allRidersGrounded())throw Error('Occupied recovery');
+  return results;
 }));
 console.log('cord tests',await page.evaluate(()=>{ui.height.value=45;resetGame();const slack=cordForce(0,S.H),stretch=cordForce(20,10),out=cordForce(20,10,10,0),inward=cordForce(20,10,-10,0);if(slack.T.some(t=>t!==0)||out.T[0]<=stretch.T[0]||inward.T[0]>=stretch.T[0])throw Error('cord force');return 'passed';}));
 console.log('failure scenarios',await page.evaluate(()=>{

@@ -400,11 +400,8 @@ function physStep(dt){
   let brake = tf>cfg.brakeAt ? Math.min(14, 1+(tf-cfg.brakeAt)*2.6) : 1;
   if(S.bounceCount>=4) brake=Math.max(brake, 1+(S.bounceCount-3)*4);
   const recovery=allRidersGrounded();
-  const attached=!S.snapped[0]||!S.snapped[1];
-  // Once every rider has landed, the operator damps the empty ride more firmly.
-  // A detached capsule still falls under normal gravity; brake only its ground skid.
-  const recoveryDamping=recovery && (attached||p.y<=cfg.podR+.05)?S.mass*3:0;
-  const cd=cfg.damp*brake+cfg.qdrag*sp+recoveryDamping;
+  // Keep normal forces: heavy damping made the empty capsule drift instead of finish.
+  const cd=cfg.damp*brake+cfg.qdrag*sp;
   const fdx=-cd*p.vx, fdy=-cd*p.vy;
   const ax=(fx+fdx)/S.mass, ay=(fy+fdy)/S.mass - GRAV;
   p.vx+=ax*dt; p.vy+=ay*dt;
@@ -466,8 +463,9 @@ function tick(dt){
     updateBanner('dragging');
   }
   else if(S.phase==='flying'){
-    const sub=Math.max(1,Math.ceil(dt/(1/240)));
-    for(let i=0;i<sub;i++) physStep(dt/sub);
+    const capsuleDt=dt*(allRidersGrounded()&&S.snapped.every(Boolean)?4:1);
+    const sub=Math.max(1,Math.ceil(capsuleDt/(1/240)));
+    for(let i=0;i<sub;i++) physStep(capsuleDt/sub);
     pushSeries(S.feltG, Math.max(S.tension[0],S.tension[1])/1000);
     handleAccidents(dt);
     checkSettle(dt);
@@ -479,6 +477,16 @@ function tick(dt){
   }
   else if(S.phase==='winch'){
     const p=S.pod, tx=0, ty=cfg.platformY;
+    if(S.emptyRecovery){
+      const recovery=S.emptyRecovery;
+      recovery.elapsed=Math.min(recovery.duration,recovery.elapsed+dt);
+      const u=recovery.elapsed/recovery.duration,ease=u*u*(3-2*u);
+      p.x=lerp(recovery.x,tx,ease);p.y=lerp(recovery.y,ty,ease);
+      const rate=6*u*(1-u)/recovery.duration;
+      p.vx=(tx-recovery.x)*rate;p.vy=(ty-recovery.y)*rate;
+      S.tension=cordForce(p.x,p.y).T;S.feltG=1;
+      if(u>=1){p.vx=p.vy=0;finishRide();}
+    }else{
     const d=dist(p.x,p.y,tx,ty), v=14*dt;
     if(d<v||d<0.1){ p.x=tx;p.y=ty;
       if(S.riders.some(r=>r.mode==='flying')) S.phase='awaitBodies';
@@ -486,6 +494,7 @@ function tick(dt){
     }
     else { p.x+=(tx-p.x)/d*14*dt; p.y+=(ty-p.y)/d*14*dt; }
     S.feltG=1; pushSeries(1, Math.max(S.tension[0],S.tension[1])/1000);
+    }
   }
   else if(S.phase==='idle'||S.phase==='boarding'){
     S.feltG=1;
@@ -852,6 +861,10 @@ function detachLimbs(r){
 
 /* -------- settle & finish -------- */
 function checkSettle(dt){
+  if(allRidersGrounded() && (!S.snapped[0]||!S.snapped[1])){
+    S.emptyRecovery={x:S.pod.x,y:S.pod.y,elapsed:0,duration:1.4};
+    S.phase='winch';updateBanner('winch');return;
+  }
   const sp=Math.hypot(S.pod.vx,S.pod.vy);
   const calm = sp<1.6 && S.feltG>0.5 && S.feltG<1.5;
   const grounded = S.pod.y<=cfg.podR+0.05 && sp<1.6;
