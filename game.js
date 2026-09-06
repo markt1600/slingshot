@@ -120,14 +120,69 @@ function resetGame(){
     ferris:0, resultDone:false,
   };
   setBodiesH(n*148 + 6);
-  DECOR.spect.forEach(sp=>sp.alive=true);   // fresh crowd, blissfully unaware
+  resetSpectators();
   setControlsEnabled(true);
   updateBanner('boarding');
 }
 
 /* -------- spectator crushing: falling bodies & debris flatten the crowd -------- */
 const SPECT_X0=205;   // crowd fence position (screen px)
-function spectWorldX(sp){ const h=Math.max(S.H,55),scale=Math.min(SW/(2*(.74*h+14)),(SH-26)/(h+68));return (SPECT_X0+sp.dx-SW/2)/scale; }
+function spectWorldX(sp){ const h=Math.max(S.H,55),scale=Math.min(SW/(2*(.74*h+14)),(SH-26)/(h+68));return (sp.x-SW/2)/scale; }
+function resetSpectators(){
+  // Keep the original fence crowd and add visitors along both sides of the midway.
+  if(DECOR.spect.length===14){
+    for(let i=0;i<20;i++) DECOR.spect.push({dx:0,walker:true,homeX:40+i*45,ph:rnd(0,TAU)});
+  }
+  S.crowdPanic=false;
+  DECOR.spect.forEach((sp,i)=>Object.assign(sp,{
+    alive:true,x:sp.walker?sp.homeX:SPECT_X0+sp.dx,
+    dir:i%2?1:-1,speed:12+(i%5)*2,runSpeed:65+(i%7)*6,
+    wait:sp.walker?(i%4===0?1.5:0):Infinity,turnIn:2+(i%5),
+    panicAt:Infinity,panicking:false,walkPh:sp.ph,
+    shirt:SHIRTS[i%4],seat:i%4,face:'happy',dmg:{},mode:'landed',
+  }));
+}
+function panicSpectators(){
+  if(S.crowdPanic) return;
+  S.crowdPanic=true;
+  const dangerX=W2SX(S.pod.x);
+  DECOR.spect.forEach((sp,i)=>{
+    if(!sp.alive) return;
+    sp.panicAt=S.t+.05+(i%7)*.07;
+    sp.dir=sp.x<dangerX?-1:1;
+    sp.turnIn=.8+(i%6)*.3;
+  });
+}
+function stepSpectators(dt){
+  for(const sp of DECOR.spect){
+    if(!sp.alive) continue;
+    if(S.t>=sp.panicAt){sp.panicking=true;sp.face='scared';sp.wait=0;}
+    if(!sp.panicking&&!sp.walker) continue;
+    if(sp.wait>0){sp.wait=Math.max(0,sp.wait-dt);sp.mode='landed';continue;}
+    sp.mode='boarding';
+    sp.x+=sp.dir*(sp.panicking?sp.runSpeed:sp.speed)*dt;
+    sp.walkPh+=dt*(sp.panicking?19:5);
+    sp.turnIn-=dt;
+    if(sp.x<24||sp.x>SW-24){sp.x=clamp(sp.x,24,SW-24);sp.dir*=-1;}
+    if(sp.turnIn<=0){
+      if(sp.panicking){sp.dir*=-1;sp.turnIn=rnd(.8,2.5);}
+      else{sp.wait=rnd(1.5,4);sp.turnIn=rnd(3,7);}
+    }
+  }
+}
+function drawSpectators(c){
+  const gy=W2SY(0);
+  for(const sp of DECOR.spect){
+    if(!sp.alive) continue;
+    const sz=RIDER_SCENE_SCALE;
+    c.save();c.translate(sp.x,gy);
+    c.fillStyle='rgba(24,35,32,.22)';c.beginPath();c.ellipse(0,1,sz*.85,2,0,0,TAU);c.fill();
+    c.scale(sp.dir,1);
+    const bob=sp.mode==='boarding'?Math.abs(Math.sin(sp.walkPh))*(sp.panicking?1.8:.5):0;
+    drawPerson(c,0,-2.71*sz-bob,sz,sp,sp.panicking?1:0);
+    c.restore();
+  }
+}
 function crushRadius(r){
   // how much of them is left determines the splat footprint:
   // full body ≈2.4 m, missing limbs shrink it, lone torso ≈0.9 m
@@ -147,6 +202,7 @@ function crushSpectators(x,rad){
     }
   }
   if(n>0){
+    panicSpectators();
     S.crushed=(S.crushed||0)+n;
     SFX.splat(); S.shake=Math.max(S.shake,5);
     if(n>1) addText(x,5,n+' BYSTANDERS DOWN!!','#ff2222',18);
@@ -364,6 +420,7 @@ function release(){
 function doSnap(i){
   if(S.snapped[i]) return;
   S.snapped[i]=true; S.snapWave[i]=1.4;
+  panicSpectators();
   SFX.snap();
   S.shake=Math.max(S.shake,10);
   S.flash=Math.max(S.flash||0,0.5);
@@ -416,6 +473,7 @@ function physStep(dt){
     p.y=cfg.podR; p.vy=recovery?0:(impact>1.2 ? impact*0.28 : 0); p.vx=Math.sign(p.vx)*Math.max(0,Math.abs(p.vx)-0.48*impact);  // keep horizontal speed through a ground scrape
     S.podVr*=0.6;
     if(impact>4){
+      panicSpectators();
       const spikeG=impact*0.9;
       S.feltG=Math.max(S.feltG,spikeG);
       S.shake=Math.max(S.shake,impact);
@@ -520,6 +578,7 @@ function tick(dt){
       stepRiders(dt/n, lerp(podX0,S.pod.x,f), lerp(podY0,S.pod.y,f));
     }
   }
+  stepSpectators(dt);
   stepBalloons(dt);
   stepParticles(dt);
   stepAmbulance(dt);
@@ -601,6 +660,7 @@ function handleAccidents(dt){
 }
 
 function ejectRiders(list){
+  if(list.length) panicSpectators();
   const n=S.riders.length;
   for(const r of list){
     r.mode='flying';
@@ -627,6 +687,7 @@ function riderHealthy(r){
 
 /* -------- G damage to seated riders -------- */
 function shedLimb(r,kind){
+  panicSpectators();
   // a limb tears loose and is flung out of the pod at speed
   S.particles.push({type:'limb',kind,shirt:r.shirt,skin:r.skin,hairC:r.hairC,trousers:r.trousers,x:S.pod.x+rnd(-1,1),y:S.pod.y+1,
     vx:S.pod.vx*1.1+rnd(-4,4), vy:S.pod.vy*1.1+rnd(2,8), rot:rnd(0,TAU), vr:rnd(-14,14), life:99, rest:false});
@@ -1557,7 +1618,7 @@ function drawGround(c){
   c.strokeStyle='#758280';c.lineWidth=3;c.beginPath();c.moveTo(W2SX(2.5),deck);c.lineTo(rw,gy);c.stroke();
   c.lineWidth=1.1;for(let i=0;i<=9;i++){let f=i/9,rx=lerp(W2SX(2.5),rw,f),ry=lerp(deck,gy,f);c.beginPath();c.moveTo(rx,ry);c.lineTo(rx,ry-9);c.stroke();}
   c.beginPath();c.moveTo(W2SX(2.5),deck-9);c.lineTo(rw,gy-9);c.stroke();
-  for(let i=0;i<14;i++){const sp=DECOR.spect[i];if(sp.alive===false)continue;const sx=W2SX(spectWorldX(sp));drawPerson(c,sx,gy-2.71*RIDER_SCENE_SCALE,RIDER_SCENE_SCALE,{shirt:['#34454e','#76614d','#737c70'][i%3],seat:i%4,hairC:'#403c34',face:'happy',dmg:{},mode:'landed'},0);}
+  drawSpectators(c);
   c.strokeStyle='#59696b';c.lineWidth=1;for(let x=202;x<355;x+=12){c.beginPath();c.moveTo(x,gy);c.lineTo(x,gy-13);c.stroke();}c.beginPath();c.moveTo(202,gy-12);c.lineTo(355,gy-12);c.stroke();
   for(const st of S.stains)drawBloodStain(c,st);
 }
@@ -1888,7 +1949,7 @@ function drawTexturedPerson(c,x,y,s,r,pose){
     c.beginPath();points.forEach(([px,py],i)=>i?c.lineTo(px,py):c.moveTo(px,py));c.closePath();c.clip();stamp();c.restore();
   };
   const limp=r.face==='dead'||r.face==='ko'||r.dmg.neck>=2;
-  const step=r.mode==='boarding'?Math.sin(r.walkPh||0)*.12:0;
+  const step=r.mode==='boarding'?Math.sin(r.walkPh||0)*(r.panicking?.42:.12):0;
   const flutter=r.mode==='flying'&&!limp?Math.sin((r.armWave||0)*.55)*.19:0;
   for(const side of [-1,1]){
     const leg=[[-.51,.29],[.01,.29],[.01,2.74],[-.84,2.74]].map(([px,py])=>[side===1?-px:px,py]);

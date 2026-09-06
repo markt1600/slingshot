@@ -18,6 +18,8 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 Latest visual pass:
 
+- Twenty additional spectators stroll along the midway and pause to watch the ride. Cord failures, rider ejections, detached debris, hard capsule impacts, and bystander injuries send both the walkers and the original fourteen-person fence crowd running in panic. Spectators react at staggered times, change direction, and reset with each new ride; collisions follow their current positions.
+
 - Once every rider has landed, an attached empty capsule returns in a bounded 1.4-second winch animation. A fully detached empty capsule finishes its remaining fall and ground settling at 4× speed. Rider motion and the rest of the simulation remain at the selected playback speed.
 
 - Real elapsed time is preserved during slow frames instead of capped at 50 ms. Character textures are cached and side-panel rendering is limited to 10 Hz, reducing the load during busy rides.

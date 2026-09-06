@@ -43,6 +43,37 @@ console.log('empty capsule recovery',await page.evaluate(()=>{
   S.riders[0].mode='seated';if(allRidersGrounded())throw Error('Occupied recovery');
   return results;
 }));
+console.log('spectator behavior',await page.evaluate(()=>{
+  ui.height.value=45;resetGame();computeView();
+  if(DECOR.spect.length!==34)throw Error('Missing additional spectators');
+  const fence=DECOR.spect[0],walker=DECOR.spect[15],start=walker.x,fenceStart=fence.x;
+  for(let i=0;i<240;i++)tick(1/240);
+  if(walker.x===start||fence.x!==fenceStart||S.crowdPanic)throw Error('Calm crowd behavior');
+  walker.turnIn=0;stepSpectators(1/240);const watchingX=walker.x;stepSpectators(.1);
+  if(walker.x!==watchingX||walker.mode!=='landed')throw Error('Walker did not stop to watch');
+  for(const trigger of [()=>doSnap(0),()=>ejectRiders([S.riders[0]]),()=>shedLimb(S.riders[0],'arm'),()=>{
+    S.phase='flying';S.pod.y=1;S.pod.vy=-10;physStep(1/240);
+  }]){
+    resetGame();computeView();trigger();
+    if(!S.crowdPanic)throw Error('Accident did not alert crowd');
+    const deadlines=DECOR.spect.map(sp=>sp.panicAt);panicSpectators();
+    if(DECOR.spect.some((sp,i)=>sp.panicAt!==deadlines[i]))throw Error('Repeated alarm delays reaction');
+    S.t+=.6;stepSpectators(1/240);
+    if(DECOR.spect.some(sp=>!sp.panicking))throw Error('Not all spectators panicked');
+    const sp=DECOR.spect[15],x=sp.x;stepSpectators(.1);
+    if(Math.abs(sp.x-x)<sp.speed*.1*2)throw Error('Panic speed too slow');
+    for(let i=0;i<240*15;i++)stepSpectators(1/240);
+    if(DECOR.spect.some(sp=>!Number.isFinite(sp.x)||sp.x<24||sp.x>SW-24))throw Error('Crowd escaped midway');
+  }
+  resetGame();computeView();const victim=DECOR.spect[15];victim.x=800;
+  crushSpectators(spectWorldX(victim),.01);
+  if(victim.alive)throw Error('Collision missed moving spectator');
+  const hitX=victim.x;stepSpectators(1);
+  if(victim.x!==hitX)throw Error('Crushed spectator moved');
+  resetGame();
+  if(S.crowdPanic||DECOR.spect.some(sp=>!sp.alive||sp.panicking||sp.panicAt!==Infinity))throw Error('Crowd reset failed');
+  return 'walking, watching, accident reactions, speed, bounds, moving collisions and reset passed';
+}));
 console.log('cord tests',await page.evaluate(()=>{ui.height.value=45;resetGame();const slack=cordForce(0,S.H),stretch=cordForce(20,10),out=cordForce(20,10,10,0),inward=cordForce(20,10,-10,0);if(slack.T.some(t=>t!==0)||out.T[0]<=stretch.T[0]||inward.T[0]>=stretch.T[0])throw Error('cord force');return 'passed';}));
 console.log('failure scenarios',await page.evaluate(()=>{
   const results=[];for(const h of [45,200])for(const chute of [false,true]){
