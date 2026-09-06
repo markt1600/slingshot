@@ -49,7 +49,7 @@ console.log('spectator behavior',await page.evaluate(()=>{
   const fence=DECOR.spect[0],walker=DECOR.spect[15],start=walker.x,fenceStart=fence.x;
   for(let i=0;i<240;i++)tick(1/240);
   if(walker.x===start||fence.x!==fenceStart||S.crowdPanic)throw Error('Calm crowd behavior');
-  walker.turnIn=0;stepSpectators(1/240);const watchingX=walker.x;stepSpectators(.1);
+  walker.turnIn=0;stepSpectators(1/240);for(let i=0;i<240;i++)stepSpectators(1/240);const watchingX=walker.x;stepSpectators(.1);
   if(walker.x!==watchingX||walker.mode!=='landed')throw Error('Walker did not stop to watch');
   for(const trigger of [()=>doSnap(0),()=>ejectRiders([S.riders[0]]),()=>shedLimb(S.riders[0],'arm'),()=>{
     S.phase='flying';S.pod.y=1;S.pod.vy=-10;physStep(1/240);
@@ -60,10 +60,20 @@ console.log('spectator behavior',await page.evaluate(()=>{
     if(DECOR.spect.some((sp,i)=>sp.panicAt!==deadlines[i]))throw Error('Repeated alarm delays reaction');
     S.t+=.6;stepSpectators(1/240);
     if(DECOR.spect.some(sp=>!sp.panicking))throw Error('Not all spectators panicked');
+    if(DECOR.spect.some(sp=>sp.behavior!=='startled'))throw Error('Missing initial startled reaction');
+    if(!DECOR.spect.some(sp=>sp.pointT>0))throw Error('Nobody points at the incident');
+    for(let i=0;i<240;i++)stepSpectators(1/240);
     const sp=DECOR.spect[15],x=sp.x;stepSpectators(.1);
     if(Math.abs(sp.x-x)<sp.speed*.1*2)throw Error('Panic speed too slow');
-    for(let i=0;i<240*15;i++)stepSpectators(1/240);
+    const escapeDir=sp.dir;
+    for(let i=0;i<240*15;i++){
+      stepSpectators(1/240);
+      if(sp.dir!==escapeDir)throw Error('Fleeing spectator randomly reversed direction');
+    }
     if(DECOR.spect.some(sp=>!Number.isFinite(sp.x)||sp.x<24||sp.x>SW-24))throw Error('Crowd escaped midway');
+    if(DECOR.spect.some(sp=>sp.behavior!=='sheltered'||Math.abs(sp.vx)>1))throw Error('Crowd did not stop at safety');
+    sp.gestureIn=0;stepSpectators(1/240);
+    if(sp.lookDir!==Math.sign(W2SX(S.pod.x)-sp.x)||sp.lookT<=0)throw Error('Spectator did not look back at ride');
   }
   resetGame();computeView();const victim=DECOR.spect[15];victim.x=800;
   crushSpectators(spectWorldX(victim),.01);

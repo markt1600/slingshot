@@ -86,6 +86,32 @@ const root=path.resolve(__dirname,'..');
     };
     assert(!(await canopyFrame(1)).equals(await canopyFrame(1.5)),'canopy fabric must move in the wind');
     await page.locator('#renderQA').screenshot({path:path.join(root,'test-results/parachutes.png')});
+    // Isolate the crowd poses to verify gait, head turns, and one-arm pointing.
+    const spectatorPose=async(phase,pointT=0,lookDir=1)=>{
+      await page.evaluate(({phase,pointT,lookDir})=>{
+        resetGame();paused=true;computeView();
+        const c=document.querySelector('#renderQA').getContext('2d');
+        c.clearRect(0,0,1100,620);c.fillStyle='#849796';c.fillRect(0,0,1100,620);
+        const sp=DECOR.spect[15];Object.assign(sp,{behavior:'fleeing',panicking:true,vx:80,dir:1,walkPh:phase,pointT,lookDir});
+        c.save();c.translate(200,300);drawSpectatorPerson(c,sp,40);c.restore();
+      },{phase,pointT,lookDir});
+      return page.locator('#renderQA').screenshot();
+    };
+    const stride=await spectatorPose(.4);
+    assert(!stride.equals(await spectatorPose(1.4)),'jointed running stride must change');
+    assert(!stride.equals(await spectatorPose(.4,0,-1)),'head must turn independently');
+    assert(!stride.equals(await spectatorPose(.4,1)),'pointing must visibly change one arm');
+    await page.evaluate(()=>{
+      const c=document.querySelector('#renderQA').getContext('2d');
+      c.clearRect(0,0,1100,620);c.fillStyle='#849796';c.fillRect(0,0,1100,620);
+      const poses=[['Watching','watching',0,0,1],['Pointing','watching',0,1,1],['Startled','startled',0,0,1],['Running','fleeing',80,0,1],['Glance back','fleeing',80,0,-1]];
+      poses.forEach(([label,behavior,vx,pointT,lookDir],i)=>{
+        const sp={...DECOR.spect[15],behavior,vx,pointT,lookDir,dir:1,walkPh:1.2,panicking:i>1};
+        c.fillStyle='#20343b';c.font='18px system-ui';c.fillText(label,50+i*210,60);
+        c.save();c.translate(100+i*210,320);drawSpectatorPerson(c,sp,45);c.restore();
+      });
+    });
+    await page.locator('#renderQA').screenshot({path:path.join(root,'test-results/spectator-poses.png')});
     assert.deepEqual(errors,[]);
     console.log('PASS: character/vehicle materials, all injury levels, detached parts, blood, cloud drift, foliage sway, reduced motion, Ferris wheel, coaster train and balloons.');
   }finally{await browser.close();}
