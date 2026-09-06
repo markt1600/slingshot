@@ -10,6 +10,24 @@ console.log('camera',await page.evaluate(()=>{
   if(VIEW.s!==scale||VIEW.ox!==ox||VIEW.oy!==oy)throw Error('Camera changed after release');
   return 'Fixed scene scale after release passed';
 }));
+console.log('real-time motion',await page.evaluate(()=>{
+  const originalRAF=window.requestAnimationFrame;window.requestAnimationFrame=()=>0;
+  const result=[];
+  try{
+    for(const hz of [60,10,5]){
+      ui.height.value=20;ui.riders.value=4;ui.acc.value=0;ui.rope.value=300;resetGame();ui.snd.checked=false;
+      S.riders.forEach(r=>r.mode='seated');S.phase='dragging';S.pod.x=5;release();
+      lastT=0;for(let i=1;i<=hz*2;i++)frame(i*1000/hz);
+      if(Math.abs(S.t-2)>.005)throw Error('Dropped simulation time at '+hz+' FPS');
+      result.push({hz,time:S.t,x:S.pod.x,y:S.pod.y});
+    }
+    for(const r of result)if(Math.hypot(r.x-result[0].x,r.y-result[0].y)>.03)throw Error('Motion depends on frame rate');
+  }finally{window.requestAnimationFrame=originalRAF;lastT=performance.now();}
+  resetGame();S.pod.x=1000;const rider=S.riders[0];rider.mode='flying';rider.y=1000;rider.vy=0;rider.vx=0;rider.hasChute=false;
+  for(let i=0;i<240;i++)stepRiders(1/240);
+  if(rider.vy>-9.3||rider.vy<-9.81)throw Error('Unrealistic initial free fall');
+  return {frames:result,fallSpeedAfterOneSecond:rider.vy};
+}));
 console.log('cord tests',await page.evaluate(()=>{ui.height.value=45;resetGame();const slack=cordForce(0,S.H),stretch=cordForce(20,10),out=cordForce(20,10,10,0),inward=cordForce(20,10,-10,0);if(slack.T.some(t=>t!==0)||out.T[0]<=stretch.T[0]||inward.T[0]>=stretch.T[0])throw Error('cord force');return 'passed';}));
 console.log('failure scenarios',await page.evaluate(()=>{
   const results=[];for(const h of [45,200])for(const chute of [false,true]){

@@ -43,9 +43,8 @@ const cfg = {
   qdrag: 0.4,         // quadratic air drag (N·s²/m²)
   brakeAt: 9.0,       // sim-seconds of free bouncing before the ride brake ramps in (~2 full cycles)
   Tmax: 52000,        // rated max tension per cord at 100% rope strength (N) — beefy by default
-  riderDrag: 0.25,    // air drag on flailing ejected bodies (1/s) — low: they SAIL
+  riderTerminalSpeed: 55, // approximate spread-body terminal speed in m/s
   ejectVmax: 36,      // cap so thrown bodies still land on screen (m/s)
-  timeScale: 3,       // playback speed of the flight phase (same physics, 3x faster)
   chuteVmax: 15,      // descent cap with a parachute — only slightly slower, for snappy gameplay
   platformY: 10,      // pod center height when latched — boarding deck is up at 10 m
 };
@@ -96,6 +95,7 @@ function makeRiders(n, belted, chuted){
 }
 
 function resetGame(){
+  lastPanelPaint=-Infinity;
   dragging=false; scene.style.cursor='grab'; accumulator=0; paused=false; el('pauseBtn').textContent='Pause'; refreshLabels();
   const H = +ui.height.value, n = +ui.riders.value;
   S = {
@@ -201,7 +201,8 @@ const W2SX = x => VIEW.ox + x*VIEW.s;
 const W2SY = y => VIEW.oy - y*VIEW.s;
 const S2WX = X => (X-VIEW.ox)/VIEW.s;
 const S2WY = Y => (VIEW.oy-Y)/VIEW.s;
-function podPxR(){ return Math.max(cfg.podR*VIEW.s, 22); }
+const RIDER_SCENE_SCALE=5;
+function podPxR(){ return Math.max(cfg.podR*VIEW.s,22,S.nRiders*7); }
 
 /* ============================ INPUT ============================ */
 let dragging=false;
@@ -661,8 +662,10 @@ function stepRiders(dt,podX,podY){
     r.armWave+=dt*(r.mode==='flying'?16:6);   // panic flailing is FAST
     if(r.mode!=='flying') continue;
     r.vy-=GRAV*dt;
-    const dragF=cfg.riderDrag*dt;             // flailing bodies have lots of drag
-    r.vx-=r.vx*dragF; r.vy-=r.vy*dragF;
+    // Quadratic aerodynamic drag: small at low speed, increasing toward terminal speed.
+    const airDrag=GRAV/(cfg.riderTerminalSpeed**2)*Math.hypot(r.vx,r.vy);
+    const airFactor=1/(1+airDrag*dt);
+    r.vx*=airFactor; r.vy*=airFactor;
     // parachute: healthy riders pull the cord once they're falling
     if(r.chuteOpen){
       r.chuteInflation=Math.min(1,(r.chuteInflation||0)+dt/0.85);
@@ -1532,7 +1535,7 @@ function drawGround(c){
   c.strokeStyle='#758280';c.lineWidth=3;c.beginPath();c.moveTo(W2SX(2.5),deck);c.lineTo(rw,gy);c.stroke();
   c.lineWidth=1.1;for(let i=0;i<=9;i++){let f=i/9,rx=lerp(W2SX(2.5),rw,f),ry=lerp(deck,gy,f);c.beginPath();c.moveTo(rx,ry);c.lineTo(rx,ry-9);c.stroke();}
   c.beginPath();c.moveTo(W2SX(2.5),deck-9);c.lineTo(rw,gy-9);c.stroke();
-  for(let i=0;i<14;i++){const sp=DECOR.spect[i];if(sp.alive===false)continue;const sx=W2SX(spectWorldX(sp));drawPerson(c,sx,gy-7,3.3,{shirt:['#34454e','#76614d','#737c70'][i%3],hairC:'#403c34',face:'happy',dmg:{},mode:'landed'},0);}
+  for(let i=0;i<14;i++){const sp=DECOR.spect[i];if(sp.alive===false)continue;const sx=W2SX(spectWorldX(sp));drawPerson(c,sx,gy-2.71*RIDER_SCENE_SCALE,RIDER_SCENE_SCALE,{shirt:['#34454e','#76614d','#737c70'][i%3],seat:i%4,hairC:'#403c34',face:'happy',dmg:{},mode:'landed'},0);}
   c.strokeStyle='#59696b';c.lineWidth=1;for(let x=202;x<355;x+=12){c.beginPath();c.moveTo(x,gy);c.lineTo(x,gy-13);c.stroke();}c.beginPath();c.moveTo(202,gy-12);c.lineTo(355,gy-12);c.stroke();
   for(const st of S.stains)drawBloodStain(c,st);
 }
@@ -1561,8 +1564,8 @@ function drawTowersAndCords(c){
 }
 
 
-function drawBoarders(c){for(const r of S.riders)if(r.mode==='boarding')drawPerson(c,W2SX(r.x),W2SY(r.y)-8,3.5,r,0);}
-function drawFlyingRiders(c){for(const r of S.riders){if(!['flying','landed'].includes(r.mode))continue;const X=W2SX(r.x),Y=W2SY(r.y),sz=5;
+function drawBoarders(c){for(const r of S.riders)if(r.mode==='boarding')drawPerson(c,W2SX(r.x),W2SY(r.y)-2.71*RIDER_SCENE_SCALE,RIDER_SCENE_SCALE,r,0);}
+function drawFlyingRiders(c){for(const r of S.riders){if(!['flying','landed'].includes(r.mode))continue;const X=W2SX(r.x),Y=W2SY(r.y),sz=RIDER_SCENE_SCALE;
   if(r.chuteOpen||r.chuteLanded)drawParachute(c,X,Y,r);
   c.save();c.translate(X,Y);c.rotate(-r.rot);drawPerson(c,0,-3,sz,r,r.mode==='flying'?1:0);c.restore();
 }}
@@ -1691,7 +1694,7 @@ function drawPod(c){
   for(const side of [-1,1]){c.fillStyle=steel;c.beginPath();c.roundRect(side*.75-.1,-.26,.2,.22,.035);c.fill();c.fillStyle='#1c2d36';c.beginPath();c.arc(side*.75,-.15,.056,0,TAU);c.fill();c.strokeStyle='#c9c9b7';c.lineWidth=.017;c.stroke();}
   }
   const seated=S.riders.filter(r=>r.mode==='seated'),n=S.nRiders;
-  const spacing=Math.min(.6,1.48/n),personScale=Math.min(.27,spacing*.49);
+  const spacing=Math.min(.6,1.48/n),personScale=RIDER_SCENE_SCALE/R;
   for(let i=0;i<n;i++){
     const x=(i-(n-1)/2)*spacing;
     c.fillStyle=surfaceGradient(c,x-.2,0,x+.2,0,[[0,'#111b21'],[.5,'#4a5351'],[1,'#1b282d']]);
@@ -1845,12 +1848,19 @@ function drawEnvironmentMotion(c){
 
 const objectImages={};
 for(const name of ['ambulance','capsule','riders']){const img=new Image();img.src='assets/'+name+'.png';objectImages[name]=img;}
+const riderTextureCache=[];
 const riderSources=[[48,8,390,912],[470,53,337,870],[850,12,376,910],[1265,55,352,868]];
 function imageReady(name){const image=objectImages[name];return image.complete&&image.naturalWidth>0;}
 function drawTexturedPerson(c,x,y,s,r,pose){
-  const source=riderSources[(r.seat||0)%4],image=objectImages.riders;
+  const index=(r.seat||0)%4;
+  if(!riderTextureCache[index]){
+    const texture=document.createElement('canvas');texture.width=128;texture.height=304;
+    texture.getContext('2d').drawImage(objectImages.riders,...riderSources[index],0,0,128,304);
+    riderTextureCache[index]=texture;
+  }
+  const image=riderTextureCache[index];
   c.save();c.translate(x,y);c.scale(s,s);
-  const stamp=()=>c.drawImage(image,...source,-1.02,-2.12,2.04,4.83);
+  const stamp=()=>c.drawImage(image,-1.02,-2.12,2.04,4.83);
   const piece=(points,pivot=[0,0],angle=0,shorten=1)=>{
     c.save();c.translate(...pivot);c.rotate(angle);c.scale(1,shorten);c.translate(-pivot[0],-pivot[1]);
     c.beginPath();points.forEach(([px,py],i)=>i?c.lineTo(px,py):c.moveTo(px,py));c.closePath();c.clip();stamp();c.restore();
@@ -2067,17 +2077,20 @@ document.addEventListener('keydown',e=>{
   if(e.target===scene && e.code==='Enter' && S.phase==='dragging'){dragging=false;release();}
 });
 document.addEventListener('visibilitychange',()=>{lastT=performance.now();accumulator=0;});
-let lastT=performance.now();
+let lastT=performance.now(),lastPanelPaint=-Infinity;
 function frame(now){
-  const dt=Math.min(.05,Math.max(0,(now-lastT)/1000));lastT=now;
+  const dt=Math.max(0,(now-lastT)/1000);lastT=now;
   sctx.setTransform(DPR,0,0,DPR,0,0);gctx.setTransform(DPR,0,0,DPR,0,0);bctx.setTransform(DPR,0,0,DPR,0,0);
   computeView();
   if(!paused && !document.hidden){
     accumulator+=dt*Number(el('speedSl').value);
-    while(accumulator>=FIXED_DT){tick(FIXED_DT);accumulator-=FIXED_DT;}
+    // Preserve elapsed time on slow frames; retain any backlog rather than slowing the ride.
+    let steps=0;
+    while(accumulator>=FIXED_DT && steps<480){tick(FIXED_DT);accumulator-=FIXED_DT;steps++;}
   }
   S.peakAltitude=Math.max(S.peakAltitude||cfg.platformY,S.pod.y);
-  drawScene();drawGraph();drawBodies();updateStats();
+  drawScene();
+  if(now-lastPanelPaint>=100){drawGraph();drawBodies();updateStats();lastPanelPaint=now;}
   el('phaseRead').textContent=paused?'Paused':({boarding:'Boarding',idle:'Ready',dragging:'Aiming',flying:'In flight',winch:'Returning',awaitBodies:'Recovery',done:'Complete'}[S.phase]||'Ready');
   el('speedRead').textContent=(Math.hypot(S.pod.vx,S.pod.vy)*3.6).toFixed(0)+' km/h';
   el('altRead').textContent=S.pod.y.toFixed(1)+' m';

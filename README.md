@@ -18,6 +18,9 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 Latest visual pass:
 
+- Real elapsed time is preserved during slow frames instead of capped at 50 ms. Character textures are cached and side-panel rendering is limited to 10 Hz, reducing the load during busy rides.
+- Standing, boarding, seated, and falling people share one readable scene scale. Unrestrained falling riders use quadratic aerodynamic drag instead of strong linear damping.
+
 - Dimensional enamel-style title lettering, a slingshot emblem, and a framed midway sign treatment that adapts to mobile.
 - Nine-cell parachutes inflate progressively, bank in the wind, and ripple along the trailing edge. Suspension lines stay connected to the rider, and landed canopies collapse onto the ground.
 
