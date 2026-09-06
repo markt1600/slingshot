@@ -52,7 +52,7 @@ const cfg = {
 const DECK = cfg.platformY - cfg.podR;   // walking surface of the boarding deck
 const NAMES   = ['Bob','Sue','Rex','Pam'];
 const SHIRTS  = ['#e05545','#3d7bd9','#3fae5a','#b65fd0'];
-const SCREAMS = ['AAAAAH!','WHEEEE!','MOMMY!!','I REGRET THIS!','WHY?!','HELP!!','😱','TOO FAST!'];
+const SCREAMS = ['Here we go!','Hold on!','Second thoughts…','I regret everything.','That is quite high.','A little too fast.'];
 // static decoration layout (computed once so nothing flickers)
 const DECOR={
   clouds:[{s:1,y:52,sp:7,a:.92},{s:.7,y:98,sp:11,a:.7},{s:1.3,y:142,sp:5,a:.5},{s:.55,y:30,sp:15,a:.8}],
@@ -88,7 +88,7 @@ function makeRiders(n, belted, chuted){
       x:0,y:0,vx:0,vy:0,rot:0,vr:0,
       face:'happy',                      // happy|scared|pain|dizzy|ko|dead
       dmg:{head:0,neck:0,torso:0,arms:0,legs:0}, // 0 ok,1 hurt,2 broken,3 detached
-      status:'Ready to ride!',
+      status:'Awaiting launch',
       armWave:Math.random()*TAU,
     });
   }
@@ -245,7 +245,7 @@ function refreshLabels(){
   ui.ridersV.textContent = ui.riders.value;
   ui.accV.textContent    = ui.acc.value+'%';
   ui.ropeStrV.textContent= ui.rope.value+'%';
-  ui.beltState.textContent = ui.belts.checked ? 'FASTENED' : '⚠️ NOPE!';
+  ui.beltState.textContent = ui.belts.checked ? 'FASTENED' : 'UNFASTENED';
   ui.beltState.style.color = ui.belts.checked ? '#1d7a36' : '#c00';
   ui.sndState.textContent = ui.snd.checked ? 'ON' : 'OFF';
   ui.chuteState.textContent = ui.chutes.checked ? 'ISSUED' : 'NOT ISSUED';
@@ -601,7 +601,7 @@ function ejectRiders(list){
     r.face='scared';
     r.ejT=S.t;
     r.scream=pick(SCREAMS);   // one label that follows them through the air
-    r.status='AIRBORNE!!';
+    r.status='Ejected from capsule';
   }
   S.mass=cfg.baseMass+cfg.riderMass*S.riders.filter(r=>r.mode==='seated').length;
 }
@@ -627,7 +627,7 @@ function applyGDamage(g){
       shedLimb(r,'arm'); shedLimb(r,'arm'); shedLimb(r,'leg'); shedLimb(r,'leg');
       addText(S.pod.x,S.pod.y+6,'LIMBS EVERYWHERE!!','#ff2222',18);
       r.face='dead';
-      r.status=pick(['Liquefied at '+g.toFixed(0)+'g ☠️','Internal organs filed for divorce at '+g.toFixed(0)+'g ☠️','Exceeded the warranty of the human body ☠️']);
+      r.status='Fatal injuries at '+g.toFixed(0)+' g.';
       spawnBlood(S.pod.x,S.pod.y+2,14);
       SFX.splat();
       addText(S.pod.x,S.pod.y+4,'SQUISH.','#ff2222',20);
@@ -638,7 +638,7 @@ function applyGDamage(g){
         addText(S.pod.x,S.pod.y+6,'AN ARM FLEW OFF!!','#ff4444',16);
       }
       r.face='ko';
-      r.status=pick(['G-LOC at '+g.toFixed(0)+'g — spine compressed, out cold!','Blacked out, neck crushed, ribs caved!','Unconscious — vertebrae played like an accordion!']);
+      r.status='Unconscious. Severe spinal injuries.';
       spawnBlood(S.pod.x,S.pod.y+2,6);
       addText(S.pod.x,S.pod.y+4,'CRUNCH.','#ff4444',18);
     } else if(g>r.tol && r.dmg.neck<2){
@@ -647,13 +647,13 @@ function applyGDamage(g){
         r.dmg.arms=3; shedLimb(r,'arm');
         addText(S.pod.x,S.pod.y+6,'THERE GOES AN ARM!','#ff4444',15);
       }
-      r.status=pick(['Neck snapped like celery at '+g.toFixed(0)+'g!!','Broken neck — heard it three rows back!!','C-spine: catastrophically rearranged!!']);
+      r.status='Neck injury at '+g.toFixed(0)+' g.';
       spawnBlood(S.pod.x,S.pod.y+2,3);
       SFX.crack();
       addText(S.pod.x,S.pod.y+4,'*CRACK*','#ff4444',16);
     } else if(g>r.tol*0.78 && r.dmg.neck<1){
       r.dmg.neck=1; r.face='pain';
-      r.status=pick(['Whiplash! Neck like a Pez dispenser','Savage whiplash — chiropractor jackpot','Neck strained, regrets doubled']);
+      r.status='Whiplash. Neck strain reported.';
       addText(S.pod.x,S.pod.y+4,'MY NECK!','#ffdddd',14);
     }
   }
@@ -700,10 +700,10 @@ function stepRiders(dt,podX,podY){
         r.vy=0; r.vx=0; r.rot=0; r.vr=0;
         r.mode='landed'; r.chuteOpen=false; r.chuteLanded=true;
         if(riderHealthy(r)){
-          r.face='happy'; r.status='Parachuted to safety! 🪂';
+          r.face='happy'; r.status='Landed safely by parachute.';
           addText(r.x,2,'STUCK THE LANDING!','#fff',14);
         } else {
-          r.status='Lowered down — alive, but a mess 🪂';
+          r.status='Parachute landing. Injuries remain.';
           addText(r.x,2,'rough but breathing','#ffdddd',13);
         }
         groundDust(r.x);
@@ -798,14 +798,14 @@ function landingDamage(r,v){
   if(lvl===5){
     r.dmg.head=3; r.dmg.neck=3; r.dmg.legs=3; r.dmg.arms=3; r.dmg.torso=2;
     r.face='dead';
-    r.status=pick(['Total dismemberment — head went thataway ☠️','Scattered across three zip codes ☠️','Closed-casket special: head, arms & legs all gone ☠️','Hit at '+v.toFixed(0)+' m/s. Now in convenient pieces ☠️']);
+    r.status='Fatal impact at '+v.toFixed(0)+' m/s.';
     spawnBlood(r.x,r.y,30); detachLimbs(r);
     SFX.splat();
     addText(r.x,r.y+2,'KER-SPLAT.','#ff2222',24);
   } else if(lvl===4){
     r.dmg.legs=3; r.dmg.arms=3; r.dmg.neck=2; r.dmg.torso=2;
     r.face='dead';
-    r.status=pick(['Dismembered — snapped neck, lost both legs & an arm ☠️','Came apart on impact: limbs everywhere, neck gone ☠️','Shed three limbs & a pulse ☠️']);
+    r.status='Fatal impact. Multiple severe injuries.';
     spawnBlood(r.x,r.y,18); detachLimbs(r);
     SFX.splat();
     addText(r.x,r.y+2,'SPLAT.','#ff2222',22);
@@ -813,21 +813,21 @@ function landingDamage(r,v){
     spawnChunks(r.x,5); spawnRing(r.x,0.8,3.5);
     r.dmg.legs=2; r.dmg.arms=2; r.dmg.neck=2; r.dmg.torso=1;
     r.face='ko';
-    r.status=pick(['Broken neck, shattered femurs, cracked ribs!','Folded like a lawn chair — spine & both legs broken!','Neck snapped on impact + arms bent backwards!']);
+    r.status='Unconscious. Multiple fractures.';
     spawnBlood(r.x,r.y,8); detachLimbs(r);
     SFX.crack(); SFX.thud(v);
     addText(r.x,r.y+2,'CRRRUNCH!','#ff4444',19);
   } else if(lvl===2){
     r.dmg.legs=2; r.dmg.arms=1; r.dmg.neck=1;
     r.face='pain';
-    r.status=pick(['Both legs broken + nasty whiplash!','Femurs pulverized, wrist crunched!','Legs now bend the wrong way!']);
+    r.status='Leg fractures and whiplash.';
     spawnBlood(r.x,r.y,4);
     SFX.thud(v);
     addText(r.x,r.y+2,'OOF!!','#fff',16);
   } else {
     r.dmg.legs=Math.max(r.dmg.legs,1);
     r.face='dizzy';
-    r.status=pick(['Bruised butt, bruised ego','Bounced twice. Mostly fine…','Tailbone & dignity: fractured']);
+    r.status='Bruised, but conscious.';
     addText(r.x,r.y+2,'oof.','#fff',13);
   }
 }
@@ -866,8 +866,8 @@ function finishRide(){
     if(r.face==='dead'||r.dmg.head===3) dead++;
     else if(worst>=1) injured++;
     else if(r.chuteLanded){ if(riderHealthy(r)){ r.face='happy'; } else { injured++; } }   // chute landers: glory if whole, ER if not
-    else if(S.snapped[0]||S.snapped[1]){ r.face='dizzy'; r.status=pick(['Unhurt but traumatized.','Physically fine. Emotionally: shredded.','Survived a rope snap. Will sue.']); injured++; }
-    else { r.face='happy'; r.status=pick(['BEST. RIDE. EVER!','10/10 — would defy death again!','AGAIN! AGAIN! AGAIN!']); }
+    else if(S.snapped[0]||S.snapped[1]){ r.face='dizzy'; r.status='Survived the cord failure. Recovering.'; injured++; }
+    else { r.face='happy'; r.status='Uninjured. Already asking to go again.'; }
   }
   if(S.crushed) injured+=S.crushed;   // bystanders count too
   if(dead||injured){
@@ -883,12 +883,30 @@ function finishRide(){
     SFX.cheer();
     updateBanner('happy');
   }
-  if(S.crushed) S.bannerSub=S.crushed+' innocent bystander'+(S.crushed>1?'s':'')+' crushed. Lawyers en route.';
+  if(S.crushed) S.bannerSub=S.crushed+' bystander'+(S.crushed>1?'s':'')+' struck. Emergency response is underway.';
   setControlsEnabled(true);
 }
 
 /* ============================ PARTICLES & TEXT ============================ */
-function addText(x,y,str,color,size){ S.texts.push({x,y,str,color,size,life:1.6}); }
+function addText(x,y,str,color,size){
+  const wording={
+    '*hup*':'Boarded','*clunk*':'Restraints secured','*click* 😨':'Restraint released',
+    '💥 SNAP!!':'Cord snapped','TOTAL SEPARATION!!':'Capsule released','💥 OOF!':'Ground impact',
+    'crrrk...':'Cord strain','POP! 🎈':'Balloon popped','LIMBS EVERYWHERE!!':'Critical injuries',
+    'SQUISH.':'Severe impact','AN ARM FLEW OFF!!':'Arm injury','THERE GOES AN ARM!':'Arm injury',
+    'CRUNCH.':'Severe strain','*CRACK*':'Injury reported','MY NECK!':'Neck strain',
+    '🪂 WHOOSH!':'Parachute deployed','🪂 auto-deploy':'Automatic deployment',
+    'STUCK THE LANDING!':'Safe landing','rough but breathing':'Landed · needs assistance',
+    'BONK!':'Collision','CLANG!!':'Capsule collision','CHUTE SHREDDED!!':'Parachute damaged',
+    'KER-SPLAT.':'Fatal impact','SPLAT.':'Severe impact','CRRRUNCH!':'Hard landing',
+    'OOF!!':'Hard landing','oof.':'Touchdown','WEE-OO WEE-OO 🚨':'Rescue crew arrived','🚑 off to the ER!':'Transporting injured riders',
+    'SQUISH!':'Bystander struck','CRUNCH!':'Bystander struck','OH NO.':'Bystander struck','☠️':'Bystander struck',
+  };
+  str=wording[str]||str.replace(/ BYSTANDERS DOWN!!/,' bystanders struck');
+  if(S.texts.some(t=>t.str===str&&t.life>1))return;
+  S.texts.push({x,y,str,color,size:12,life:1.8});
+  if(S.texts.length>5)S.texts.shift();
+}
 function spawnRing(x,y,maxR){ S.particles.push({type:'ring',x,y,r:0.4,maxR,life:0.45,t0:0.45,vx:0,vy:0,rot:0,vr:0}); }
 function spawnChunks(x,n){
   for(let i=0;i<n;i++) S.particles.push({type:'chunk',x:x+rnd(-1,1),y:0.4,vx:rnd(-7,7),vy:rnd(3,10),rot:rnd(0,TAU),vr:rnd(-12,12),life:rnd(.5,1)});
@@ -950,20 +968,22 @@ function stepAmbulance(dt){
 /* ============================ BANNER & STATS ============================ */
 function updateBanner(kind){
   const B={
-    boarding:['🎟️ ALL ABOARD!','Mind the gap. And the physics.'],
-    idle:    ['GRAB THE POD & PULL BACK!','Sliders set the ride. Belts… optional. 😬'],
-    dragging:['PULL HARDER!','Release to launch — watch the rope tension!'],
-    flying:  ['HOLD ON!!!',''],
-    snap:    ['💥 ROPE SNAPPED!!','Management denies everything.'],
-    doubleSnap:['💥💥 BOTH ROPES GONE!!','The seat is now a projectile. Bold choice.'],
-    ejected: ['THEY HAVE NO SEATBELTS!!','Gravity will handle it from here.'],
-    beltfail:['A BELT JUST POPPED OPEN!!','Quality assurance was on lunch break.'],
-    winch:   ['RIDE COMPLETE — WINCHING DOWN','Please keep limbs inside (those that remain).'],
-    happy:   ['🎉 RIDE COMPLETE! EVERYONE SURVIVED! 🎉','5 stars on Yelp incoming!'],
-    injured: ['🚑 RIDE COMPLETE… MOSTLY','Some assembly may be required.'],
-    carnage: ['☠️ TOTAL CARNAGE ☠️','The carnival is not liable. (It is.)'],
+    boarding:['Riders boarding','Setting the stage for a questionable decision.'],
+    idle:['Ready when you are','Drag the capsule to aim. Release to launch.'],
+    dragging:['Set your launch','Pull either way. Keep an eye on cord tension.'],
+    flying:['Ride in progress','Watch your speed, altitude, and G-force.'],
+    snap:['Cord failure','One cord has failed. The ride continues on the other.'],
+    doubleSnap:['Both cords have failed','The capsule is in free flight.'],
+    ejected:['Riders ejected','Unsecured riders have left the capsule.'],
+    beltfail:['Restraint failure','A seatbelt has released during the ride.'],
+    winch:['Returning to the platform','The winch is bringing the capsule home.'],
+    happy:['Everyone made it back','Management calls that a successful test. Reset to ride again.'],
+    injured:['Ride complete · injuries reported','The rescue crew is on its way.'],
+    carnage:['Ride complete · fatal injuries','Emergency response is underway.'],
   }[kind]||['',''];
-  S.banner=B[0]; S.bannerSub=B[1]; S.bannerT=0;
+  S.bannerKind=kind;
+
+  if(S.banner!==B[0])S.bannerT=0; S.banner=B[0]; S.bannerSub=B[1];
 }
 
 function updateStats(){
@@ -983,7 +1003,8 @@ function updateStats(){
   ui.maxGV.style.color=S.maxG>9?'#c00':'';
   ui.ropeV.textContent=Math.round((1-S.fray)*100)+'%';
   ui.ropeBar.style.width=((1-S.fray)*100)+'%';
-  ui.statusLine.textContent=S.banner+(S.bannerSub?' — '+S.bannerSub:'');
+  const status=S.banner+(S.bannerSub?' — '+S.bannerSub:'');
+  if(ui.statusLine.textContent!==status)ui.statusLine.textContent=status;
 }
 
 /* ============================ SCENE DRAWING ============================ */
@@ -1272,21 +1293,16 @@ function drawParticles(c){
 }
 
 function drawTexts(c){
-  c.textAlign='center';
+  c.save();c.textAlign='center';c.font='500 12px system-ui';
   for(const t of S.texts){
-    c.globalAlpha=clamp(t.life/1.6,0,1);
-    c.font='bold '+t.size+'px system-ui';
-    c.strokeStyle='#1d2a44'; c.lineWidth=3;
-    c.strokeText(t.str,W2SX(t.x),W2SY(t.y));
-    c.fillStyle=t.color; c.fillText(t.str,W2SX(t.x),W2SY(t.y));
+    const width=Math.min(SW-32,c.measureText(t.str).width+20);
+    const x=clamp(W2SX(t.x),width/2+8,SW-width/2-8),y=clamp(W2SY(t.y),96,SH-22);
+    c.globalAlpha=clamp(t.life/.5,0,1);c.fillStyle='rgba(20,37,44,.87)';
+    c.beginPath();c.roundRect(x-width/2,y-16,width,24,5);c.fill();
+    c.fillStyle='#f0e8d7';c.fillText(t.str,x,y,width-12);
   }
-  c.globalAlpha=1;
+  c.restore();
 }
-
-
-
-
-
 function drawBunting(c,cw){
   // sagging string
   c.strokeStyle='rgba(110,66,24,.85)'; c.lineWidth=2;
@@ -1373,11 +1389,11 @@ function drawGraph(){
   // danger G line
   c.strokeStyle='#ff5050'; c.setLineDash([6,5]); c.lineWidth=1.5;
   c.beginPath(); c.moveTo(L,Yg(9)); c.lineTo(L+pw,Yg(9)); c.stroke();
-  c.fillStyle='#ff5050'; c.textAlign='left'; c.fillText('DANGER G',L+4,Yg(9)-4);
+  c.fillStyle='#ff5050'; c.textAlign='left'; c.fillText('HIGH G',L+4,Yg(9)-4);
   // rope limit line
   c.strokeStyle='#37d6e8';
   c.beginPath(); c.moveTo(L,Yk(S.Tmax/1000)); c.lineTo(L+pw,Yk(S.Tmax/1000)); c.stroke();
-  c.fillText('ROPE LIMIT',L+90,Yk(S.Tmax/1000)-4);
+  c.fillText('CORD LIMIT',L+90,Yk(S.Tmax/1000)-4);
   c.setLineDash([]);
   // series
   if(S.series.length>1){
@@ -1403,13 +1419,13 @@ function drawGraph(){
   // legend + max G readout
   c.font='bold 12px sans-serif'; c.textAlign='left';
   c.fillStyle='#ffb02e'; c.fillText('— G-force',L+pw+8,T+14);
-  c.fillStyle='#37d6e8'; c.fillText('— rope kN',L+pw+8,T+30);
+  c.fillStyle='#37d6e8'; c.fillText('— cord kN',L+pw+8,T+30);
   c.fillStyle=S.maxG>9?'#ff5050':'#fff';
   c.font='bold 17px system-ui';
   c.fillText('MAX',L+pw+8,T+58);
   c.fillText(S.maxG.toFixed(1)+'g',L+pw+8,T+78);
   c.fillStyle='#8ea4cc'; c.font='11px sans-serif'; c.textAlign='center';
-  c.fillText('last 12 seconds',L+pw/2,h-7);
+  c.fillText('12-second history',L+pw/2,h-7);
 }
 
 /* ============================ RIDER CONDITION PANEL ============================ */
@@ -1423,16 +1439,14 @@ function drawBodies(){
     c.beginPath(); c.roundRect(3,y0,w-6,142,10); c.fill(); c.stroke();
     drawBodyFigure(c,52,y0+71,r);
     // dead? skull & crossbones overlay
-    if(r.face==='dead'){ c.font='24px sans-serif'; c.textAlign='right'; c.fillText('☠️',w-12,y0+30); }
-    if(r.mode==='taken'){ c.font='16px sans-serif'; c.textAlign='right'; c.fillText('🚑',w-12,y0+52); }
     // info (text column starts right of the figure zone)
     const tx=110;
     c.textAlign='left';
     c.fillStyle='#1d2a44'; c.font='bold 16px system-ui';
     c.fillText(r.name,tx,y0+24);
     c.font='11px sans-serif'; c.fillStyle='#777';
-    c.fillText('Neck tolerance: '+r.tol.toFixed(1)+'g',tx,y0+40);
-    c.fillText((r.belted?'🔗 belted':'⚠️ NO BELT')+(r.hasChute?(r.chuteTorn?'  🪂✂️':'  🪂'):''),tx,y0+54);
+    c.fillText('G tolerance: '+r.tol.toFixed(1)+'g',tx,y0+40);
+    c.fillText((r.belted?'Belt fastened':'No seatbelt')+(r.hasChute?(r.chuteTorn?' · Chute lost':' · Chute'):''),tx,y0+54);
     const worst=Math.max(r.dmg.head,r.dmg.neck,r.dmg.torso,r.dmg.arms,r.dmg.legs);
     c.font='bold 11px system-ui';
     c.fillStyle = r.face==='dead'?'#7a0d0d': worst>=2?'#d8403f': worst===1?'#e8632c':'#1d7a36';
@@ -1558,8 +1572,18 @@ function drawFlyingRiders(c){for(const r of S.riders){if(!['flying','landed'].in
   c.save();c.translate(X,Y);c.rotate(-r.rot);drawPerson(c,0,-3,sz,r,r.mode==='flying'?1:0);c.restore();
 }}
 function drawTrail(c){if(S.trail.length<2)return;c.strokeStyle='rgba(233,235,214,.2)';c.lineWidth=1;c.beginPath();S.trail.forEach((p,i)=>i?c.lineTo(W2SX(p.x),W2SY(p.y)):c.moveTo(W2SX(p.x),W2SY(p.y)));c.stroke();}
-function drawHint(c){const x=W2SX(S.pod.x),y=W2SY(S.pod.y)-podPxR()-20;c.fillStyle='rgba(18,38,47,.85)';c.beginPath();c.roundRect(x-115,y-18,230,30,6);c.fill();c.fillStyle='#f5e5c5';c.font='11px system-ui';c.textAlign='center';c.fillText('←  DRAG TO LOAD · RELEASE TO LAUNCH  →',x,y);}
-function drawBanner(c,cw){if(!S.banner)return;c.fillStyle='rgba(20,40,49,.83)';c.beginPath();c.roundRect(cw/2-240,19,480,58,8);c.fill();c.textAlign='center';c.fillStyle='#f5ead1';c.font='600 19px system-ui';c.fillText(S.banner.replace(/[\u{1F300}-\u{1FAFF}]/gu,''),cw/2,43);c.fillStyle='#b9ccc9';c.font='11px system-ui';c.fillText(S.bannerSub,cw/2,63);}
+function drawHint(c){const x=W2SX(S.pod.x),y=W2SY(S.pod.y)-podPxR()-20;c.fillStyle='rgba(18,38,47,.85)';c.beginPath();c.roundRect(x-115,y-18,230,30,6);c.fill();c.fillStyle='#f5e5c5';c.font='11px system-ui';c.textAlign='center';c.fillText('Drag to aim · Release to launch',x,y);}
+function drawBanner(c,cw){
+  if(!S.banner)return;
+  const danger=['snap','doubleSnap','ejected','beltfail','carnage'].includes(S.bannerKind);
+  const accent=danger?'#e99a7c':S.bannerKind==='happy'?'#99c8ad':'#d3c29a';
+  c.save();const width=540,x=(cw-width)/2;
+  c.fillStyle='rgba(20,38,47,.88)';c.beginPath();c.roundRect(x,19,width,62,8);c.fill();
+  c.fillStyle=accent;c.fillRect(x+16,33,2,31);
+  c.textAlign='left';c.fillStyle='#f3eee2';c.font='600 18px system-ui';c.fillText(S.banner,x+30,43,width-48);
+  c.fillStyle='#bbcdca';c.font='12px system-ui';c.fillText(S.bannerSub,x+30,65,width-48);
+  c.restore();
+}
 function drawSceneDetails(c){
   for(const b of DECOR.balloons)drawRealisticBalloon(c,b);
 
@@ -1570,7 +1594,7 @@ function drawSceneDetails(c){
 function drawPrediction(c){
   let p={...S.pod};c.save();c.strokeStyle='rgba(250,238,189,.9)';c.lineWidth=1.5;c.setLineDash([3,6]);c.beginPath();c.moveTo(W2SX(p.x),W2SY(p.y));
   for(let i=0;i<480;i++){const f=cordForce(p.x,p.y,p.vx,p.vy),sp=Math.hypot(p.vx,p.vy),cd=cfg.damp+cfg.qdrag*sp,dt=1/240;p.vx+=(f.fx-cd*p.vx)/S.mass*dt;p.vy+=((f.fy-cd*p.vy)/S.mass-GRAV)*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.y<cfg.podR)break;if(i%8===0)c.lineTo(W2SX(p.x),W2SY(p.y));}c.stroke();c.restore();
-  c.fillStyle='#f1e3ba';c.font='10px system-ui';c.textAlign='left';c.fillText('2 s projection · intact cords',20,117);
+  c.fillStyle='#f1e3ba';c.font='10px system-ui';c.textAlign='left';c.fillText('Next 2 seconds · assumes intact cords',20,117);
 }
 
 /* Material helpers use object coordinates, so details also hold up in the rider panel. */
@@ -1988,7 +2012,7 @@ function drawRealisticBalloon(c,b,time=S.t){
 let paused=false, previewOn=true, accumulator=0;
 const FIXED_DT=1/240;
 el('pauseBtn').onclick=()=>{paused=!paused;el('pauseBtn').textContent=paused?'Resume':'Pause';};
-el('previewBtn').onclick=()=>{previewOn=!previewOn;el('previewBtn').textContent='Arc preview: '+(previewOn?'on':'off');el('previewBtn').setAttribute('aria-pressed',String(previewOn));};
+el('previewBtn').onclick=()=>{previewOn=!previewOn;el('previewBtn').textContent='Flight path: '+(previewOn?'on':'off');el('previewBtn').setAttribute('aria-pressed',String(previewOn));};
 document.addEventListener('keydown',e=>{
   if(/INPUT|SELECT|BUTTON/.test(e.target.tagName)) return;
   if(e.code==='Space'){e.preventDefault();el('pauseBtn').click();}
@@ -2013,7 +2037,7 @@ function frame(now){
   }
   S.peakAltitude=Math.max(S.peakAltitude||cfg.platformY,S.pod.y);
   drawScene();drawGraph();drawBodies();updateStats();
-  el('phaseRead').textContent=paused?'PAUSED':S.phase.toUpperCase();
+  el('phaseRead').textContent=paused?'Paused':({boarding:'Boarding',idle:'Ready',dragging:'Aiming',flying:'In flight',winch:'Returning',awaitBodies:'Recovery',done:'Complete'}[S.phase]||'Ready');
   el('speedRead').textContent=(Math.hypot(S.pod.vx,S.pod.vy)*3.6).toFixed(0)+' km/h';
   el('altRead').textContent=S.pod.y.toFixed(1)+' m';
   el('peakRead').textContent=S.peakAltitude.toFixed(1)+' m';

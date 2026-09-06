@@ -10,50 +10,50 @@
 <div id="wrap">
   <div class="sidePanel" id="panelLeft">
     <div class="box" id="controlsBox">
-      <h2>🎛️ RIDE CONTROLS</h2>
-      <div class="ctlRow"><label for="heightSl">Tower Height <span class="val" id="heightV">45 m</span></label>
+      <h2>Ride setup</h2>
+      <div class="ctlRow"><label for="heightSl">Tower height <span class="val" id="heightV">45 m</span></label>
         <input type="range" id="heightSl" min="20" max="200" value="45" step="1"></div>
       <div class="ctlRow"><label for="ridersSl">Riders <span class="val" id="ridersV">2</span></label>
         <input type="range" id="ridersSl" min="1" max="4" value="2" step="1"></div>
-      <div class="ctlRow"><label for="accSl">Accident Chance <span class="val" id="accV">15%</span></label>
-        <input type="range" id="accSl" min="0" max="100" value="15" step="1"></div>
-      <div class="ctlRow"><label for="ropeSl">Rope Strength <span class="val" id="ropeStrV">100%</span></label>
+      <div class="ctlRow"><label for="accSl">Incident setting <span class="val" id="accV">15%</span></label>
+        <input type="range" id="accSl" title="Sets the chance of random incidents. Cord overload can cause failures at any setting." min="0" max="100" value="15" step="1"></div>
+      <div class="ctlRow"><label for="ropeSl">Cord strength <span class="val" id="ropeStrV">100%</span></label>
         <input type="range" id="ropeSl" min="50" max="300" value="100" step="5"></div>
-      <div class="beltRow"><span>🔗 Seatbelts<br><small id="beltState">FASTENED</small></span>
+      <div class="beltRow"><span>Seatbelts<br><small id="beltState">FASTENED</small></span>
         <label class="switch"><input type="checkbox" id="beltTg" aria-label="Seatbelts" checked><span class="slider"></span></label></div>
-      <div class="beltRow"><span>🪂 Parachutes<br><small id="chuteState">NOT ISSUED</small></span>
+      <div class="beltRow"><span>Parachutes<br><small id="chuteState">NOT ISSUED</small></span>
         <label class="switch"><input type="checkbox" id="chuteTg" aria-label="Parachutes"><span class="slider"></span></label></div>
-      <div class="beltRow"><span>🔊 Sound<br><small id="sndState">ON</small></span>
+      <div class="beltRow"><span>Sound<br><small id="sndState">ON</small></span>
         <label class="switch"><input type="checkbox" id="sndTg" aria-label="Sound" checked><span class="slider"></span></label></div>
     </div>
-    <button id="resetBtn">🔄 RESET RIDE</button>
+    <button id="resetBtn">Reset ride</button>
   </div>
   <div id="gameCol">
     <div id="titleBar">
       <h1>MEGA SLINGSHOT</h1>
-      <span class="tag">CARNIVAL OF QUESTIONABLE SAFETY / THE REBUILT RIDE</span>
+      <span class="tag">CARNIVAL OF QUESTIONABLE SAFETY · TAKE YOUR CHANCES</span>
     </div>
-    <div class="toolbar"><button id="pauseBtn" type="button">Pause</button><label>Playback <select id="speedSl"><option value="0.5">0.5× Slow</option><option value="1" selected>1× Real time</option><option value="3">3× Arcade</option></select></label><button id="previewBtn" aria-pressed="true">Arc preview: on</button><span class="help">Drag the pod · Space to pause · R to reset</span></div>
+    <div class="toolbar"><button id="pauseBtn" type="button">Pause</button><label>Playback <select id="speedSl"><option value="0.5">0.5× Slow</option><option value="1" selected>1× Real time</option><option value="3">3× Arcade</option></select></label><button id="previewBtn" aria-pressed="true">Flight path: on</button><span class="help">Drag to aim · Release to launch · Space to pause · R to reset</span></div>
     <canvas id="scene" width="960" height="540" tabindex="0" aria-label="Slingshot ride. Drag the pod to aim and release to launch. Use arrow keys to aim and Enter to launch."></canvas>
-    <div id="flightHud"><span>RIDE STATE<b id="phaseRead">BOARDING</b></span><span>SPEED<b id="speedRead">0 km/h</b></span><span>ALTITUDE<b id="altRead">10 m</b></span><span>PEAK ALTITUDE<b id="peakRead">10 m</b></span></div>
+    <div id="flightHud"><span>RIDE STATUS<b id="phaseRead">BOARDING</b></span><span>SPEED<b id="speedRead">0 km/h</b></span><span>ALTITUDE<b id="altRead">10 m</b></span><span>PEAK ALTITUDE<b id="peakRead">10 m</b></span></div>
     <canvas id="graph" width="960" height="170"></canvas>
   </div>
   <div class="sidePanel" id="panelRight">
     <div class="box" id="statsBox">
-      <h2>📊 LIVE TELEMETRY</h2>
-      <div class="statRow"><span>Rope tension (worst)</span><b id="tensionV">0.0 kN</b></div>
+      <h2>Live telemetry</h2>
+      <div class="statRow"><span>Highest cord tension</span><b id="tensionV">0.0 kN</b></div>
       <div class="bar"><i id="tensionBarI"></i></div>
-      <div class="statRow"><span>Pull-back</span><b id="pullV">0.0 m</b></div>
-      <div class="statRow"><span>Launch G (est.)</span><b id="predGV">—</b></div>
-      <div class="statRow"><span>Current G</span><b id="liveGV">1.0 g</b></div>
-      <div class="statRow"><span>MAX G</span><b id="maxGV">1.0 g</b></div>
-      <div class="statRow"><span>Snap risk</span><b id="riskV">0%</b></div>
-      <div class="statRow"><span>Rope health</span><b id="ropeV">100%</b></div>
+      <div class="statRow"><span>Pull distance</span><b id="pullV">0.0 m</b></div>
+      <div class="statRow"><span>Estimated launch G</span><b id="predGV">—</b></div>
+      <div class="statRow"><span>Current G-force</span><b id="liveGV">1.0 g</b></div>
+      <div class="statRow"><span>Peak G-force</span><b id="maxGV">1.0 g</b></div>
+      <div class="statRow"><span>Estimated snap risk</span><b id="riskV">0%</b></div>
+      <div class="statRow"><span>Cord integrity</span><b id="ropeV">100%</b></div>
       <div class="bar" id="ropeBar"><i id="ropeBarI" style="width:100%"></i></div>
-      <div id="statusLine">Load your riders, then grab the pod and PULL!</div>
+      <div id="statusLine" role="status" aria-live="polite">Choose your setup. Drag the capsule to aim, then release to launch.</div>
     </div>
     <div class="box">
-      <h2>🩺 RIDER CONDITION</h2>
+      <h2>Rider condition</h2>
       <div id="bodiesWrapInner"><canvas id="bodies" width="272" height="280"></canvas></div>
     </div>
   </div>

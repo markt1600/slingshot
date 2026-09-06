@@ -18,6 +18,8 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 Latest visual pass:
 
+- Polished setup labels, action prompts, incident warnings, rider reports, and results. Event chips are capped and deduplicated to reduce visual noise; ride status changes are announced politely to screen readers.
+
 - A 24-cabin Ferris wheel turns once every 110 simulation seconds; cabins remain upright, support legs stay fixed, and the base is partially hidden by trees.
 - A five-car coaster train follows the photographed upper rail. Each car rotates with the track slope, climbs slowly, and accelerates over the hills before returning out of view.
 - Balloons use a tapered latex silhouette, soft sky reflections, warm edge lighting, tied necks, and flexible strings. Their collision centers and popping behavior are preserved.

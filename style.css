@@ -83,3 +83,9 @@
   #flightHud{display:flex;justify-content:space-between;background:#1c3440;border:1px solid #395460;border-radius:9px;padding:12px 16px;color:#a6bdc4;font-size:10px;letter-spacing:1px}#flightHud b{display:block;color:#f0eee2;font-size:19px;letter-spacing:0;margin-top:5px;font-variant-numeric:tabular-nums}
   @media(max-width:1100px){body{padding:12px}.sidePanel{width:100%;flex-basis:auto}#wrap{display:grid;grid-template-columns:1fr 1fr}#gameCol{grid-column:1/-1;grid-row:1}#statsBox{display:block}#titleBar h1{font-size:28px}.toolbar .help{width:100%;margin:4px 0}}
   @media(max-width:600px){#wrap{display:flex}#titleBar h1{font-size:24px}#flightHud{padding:10px;font-size:8px}#flightHud b{font-size:15px}.sidePanel{width:100%}}
+
+/* Quiet, consistent text hierarchy for controls and event messages. */
+#resetBtn{font-family:inherit;font-size:13px;font-weight:650;letter-spacing:.3px;text-transform:none}
+.box h2{text-transform:uppercase}
+#statusLine{font-weight:500;line-height:1.6;text-align:left;border-top:1px solid #d4ded5;padding-top:12px}
+.toolbar .help{line-height:1.5}
