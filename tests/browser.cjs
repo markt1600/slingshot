@@ -68,10 +68,13 @@ console.log('spectator behavior',await page.evaluate(()=>{
     const escapeDir=sp.dir;
     for(let i=0;i<240*15;i++){
       stepSpectators(1/240);
-      if(sp.dir!==escapeDir)throw Error('Fleeing spectator randomly reversed direction');
+      if(sp.behavior==='fleeing'&&sp.dir!==escapeDir)throw Error('Fleeing spectator randomly reversed direction');
     }
     if(DECOR.spect.some(sp=>!Number.isFinite(sp.x)||sp.x<24||sp.x>SW-24))throw Error('Crowd escaped midway');
-    if(DECOR.spect.some(sp=>sp.behavior!=='sheltered'||Math.abs(sp.vx)>1))throw Error('Crowd did not stop at safety');
+    if(DECOR.spect.some(sp=>sp.behavior!=='milling'))throw Error('Crowd did not start milling');
+    const positions=DECOR.spect.map(sp=>sp.x);
+    for(let i=0;i<240*2;i++)stepSpectators(1/240);
+    if(DECOR.spect.every((sp,i)=>Math.abs(sp.x-positions[i])<1))throw Error('Crowd remained stationary at edges');
     sp.gestureIn=0;stepSpectators(1/240);
     if(sp.lookDir!==Math.sign(W2SX(S.pod.x)-sp.x)||sp.lookT<=0)throw Error('Spectator did not look back at ride');
   }
@@ -83,6 +86,32 @@ console.log('spectator behavior',await page.evaluate(()=>{
   resetGame();
   if(S.crowdPanic||DECOR.spect.some(sp=>!sp.alive||sp.panicking||sp.panicAt!==Infinity))throw Error('Crowd reset failed');
   return 'walking, watching, accident reactions, speed, bounds, moving collisions and reset passed';
+}));
+console.log('spectator assistance',await page.evaluate(()=>{
+  resetGame();computeView();S.pod.x=100;S.pod.y=100;
+  const r=S.riders[0];Object.assign(r,{mode:'flying',x:0,y:.51,vx:0,vy:-2,hasChute:false});
+  stepSpectators(1/240);
+  if(DECOR.spect.some(sp=>sp.helpRider))throw Error('Helpers approached before touchdown');
+  stepRiders(.02);stepSpectators(1/240);
+  const helpers=DECOR.spect.filter(sp=>sp.helpRider===r);
+  if(!r.groundContact||helpers.length!==3)throw Error('Touchdown did not recruit three helpers');
+  const initial=helpers.map(sp=>Math.abs(sp.x-W2SX(r.x)));
+  for(let i=0;i<240;i++)stepSpectators(1/240);
+  if(!helpers.some((sp,i)=>Math.abs(sp.x-W2SX(r.x))<initial[i]-5))throw Error('Helpers did not rush toward rider');
+  r.mode='landed';
+  for(let i=0;i<240*12;i++)stepSpectators(1/240);
+  if(helpers.some(sp=>sp.behavior!=='helping'))throw Error('Helpers did not attend fallen rider');
+  if(new Set(helpers.map(sp=>sp.helpOffset)).size!==3)throw Error('Helpers piled onto one spot');
+  r.mode='taken';stepSpectators(1/240);
+  if(helpers.some(sp=>sp.helpRider||sp.behavior!=='milling'))throw Error('Helpers did not resume milling after rescue');
+  resetGame();computeView();
+  S.riders.forEach((r,i)=>Object.assign(r,{mode:'landed',x:i*8,y:.5}));
+  stepSpectators(1/240);
+  if(S.riders.some(r=>DECOR.spect.filter(sp=>sp.helpRider===r).length!==3))throw Error('Multiple riders did not get helpers');
+  const dead=DECOR.spect.find(sp=>sp.helpRider);dead.alive=false;stepSpectators(1/240);
+  if(DECOR.spect.filter(sp=>sp.alive&&sp.helpRider===dead.helpRider).length!==3)throw Error('Lost helper not replaced');
+  resetGame();if(DECOR.spect.some(sp=>sp.helpRider))throw Error('Reset retained helper assignments');
+  return 'touchdown, approach, attendance, multiple riders, replacement and rescue cleanup passed';
 }));
 console.log('cord tests',await page.evaluate(()=>{ui.height.value=45;resetGame();const slack=cordForce(0,S.H),stretch=cordForce(20,10),out=cordForce(20,10,10,0),inward=cordForce(20,10,-10,0);if(slack.T.some(t=>t!==0)||out.T[0]<=stretch.T[0]||inward.T[0]>=stretch.T[0])throw Error('cord force');return 'passed';}));
 console.log('failure scenarios',await page.evaluate(()=>{

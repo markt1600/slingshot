@@ -104,11 +104,11 @@ const root=path.resolve(__dirname,'..');
     await page.evaluate(()=>{
       const c=document.querySelector('#renderQA').getContext('2d');
       c.clearRect(0,0,1100,620);c.fillStyle='#849796';c.fillRect(0,0,1100,620);
-      const poses=[['Watching','watching',0,0,1],['Pointing','watching',0,1,1],['Startled','startled',0,0,1],['Running','fleeing',80,0,1],['Glance back','fleeing',80,0,-1]];
+      const poses=[['Watching','watching',0,0,1],['Pointing','watching',0,1,1],['Startled','startled',0,0,1],['Running','fleeing',80,0,1],['Glance back','fleeing',80,0,-1],['Helping','helping',0,0,1]];
       poses.forEach(([label,behavior,vx,pointT,lookDir],i)=>{
         const sp={...DECOR.spect[15],behavior,vx,pointT,lookDir,dir:1,walkPh:1.2,panicking:i>1};
-        c.fillStyle='#20343b';c.font='18px system-ui';c.fillText(label,50+i*210,60);
-        c.save();c.translate(100+i*210,320);drawSpectatorPerson(c,sp,45);c.restore();
+        c.fillStyle='#20343b';c.font='18px system-ui';c.fillText(label,30+i*180,60);
+        c.save();c.translate(70+i*180,320);drawSpectatorPerson(c,sp,40);c.restore();
       });
     });
     await page.locator('#renderQA').screenshot({path:path.join(root,'test-results/spectator-poses.png')});

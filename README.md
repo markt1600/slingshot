@@ -18,6 +18,8 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 Latest visual pass:
 
+- After fleeing, spectators mill around the outer midway with short pauses and changing walking destinations. When a rider touches down, three nearby spectators rush over, spread out beside them, and kneel to help once they settle. Helpers return to milling after the ambulance collects the rider; multiple fallen riders receive separate groups.
+
 - Spectators now use jointed side-profile figures with bent elbows, bending knees, alternating footfalls, and a forward running lean. They look toward the ride, occasionally point, briefly startle at an incident, accelerate away, glance back, and brake to watch from the midway edges instead of repeatedly reversing direction with both arms raised.
 
 - Twenty additional spectators stroll along the midway and pause to watch the ride. Cord failures, rider ejections, detached debris, hard capsule impacts, and bystander injuries send both the walkers and the original fourteen-person fence crowd running in panic. Spectators react at staggered times, change direction, and reset with each new ride; collisions follow their current positions.
