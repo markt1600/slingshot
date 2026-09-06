@@ -386,6 +386,10 @@ function doSnap(i){
   }
 }
 
+function allRidersGrounded(){
+  return S.riders.length>0 && S.riders.every(r=>r.mode==='landed'||r.mode==='taken');
+}
+
 function physStep(dt){
   const p=S.pod;
   const {fx,fy,T}=cordForce(p.x,p.y,p.vx,p.vy);
@@ -395,7 +399,12 @@ function physStep(dt){
   // operator brakes after the free-bounce phase — and HARD once the first few bounces are done
   let brake = tf>cfg.brakeAt ? Math.min(14, 1+(tf-cfg.brakeAt)*2.6) : 1;
   if(S.bounceCount>=4) brake=Math.max(brake, 1+(S.bounceCount-3)*4);
-  const cd=(cfg.damp*brake+cfg.qdrag*sp);
+  const recovery=allRidersGrounded();
+  const attached=!S.snapped[0]||!S.snapped[1];
+  // Once every rider has landed, the operator damps the empty ride more firmly.
+  // A detached capsule still falls under normal gravity; brake only its ground skid.
+  const recoveryDamping=recovery && (attached||p.y<=cfg.podR+.05)?S.mass*3:0;
+  const cd=cfg.damp*brake+cfg.qdrag*sp+recoveryDamping;
   const fdx=-cd*p.vx, fdy=-cd*p.vy;
   const ax=(fx+fdx)/S.mass, ay=(fy+fdy)/S.mass - GRAV;
   p.vx+=ax*dt; p.vy+=ay*dt;
@@ -407,7 +416,7 @@ function physStep(dt){
   if(S.snapped[0]&&S.snapped[1]){ S.podRot+=S.podVr*dt; }
   if(p.y<cfg.podR && p.vy<0){
     const impact=-p.vy;
-    p.y=cfg.podR; p.vy=impact>1.2 ? impact*0.28 : 0; p.vx=Math.sign(p.vx)*Math.max(0,Math.abs(p.vx)-0.48*impact);  // keep horizontal speed through a ground scrape
+    p.y=cfg.podR; p.vy=recovery?0:(impact>1.2 ? impact*0.28 : 0); p.vx=Math.sign(p.vx)*Math.max(0,Math.abs(p.vx)-0.48*impact);  // keep horizontal speed through a ground scrape
     S.podVr*=0.6;
     if(impact>4){
       const spikeG=impact*0.9;
@@ -848,7 +857,7 @@ function checkSettle(dt){
   const grounded = S.pod.y<=cfg.podR+0.05 && sp<1.6;
   if(calm||grounded) S.settleTimer+=dt; else S.settleTimer=0;
   const airborne=S.riders.some(r=>r.mode==='flying');
-  if(S.settleTimer>0.9 && !airborne){
+  if(S.settleTimer>(allRidersGrounded()?0.25:0.9) && !airborne){
     if(S.snapped[0]||S.snapped[1]||grounded) finishRide();
     else { S.phase='winch'; updateBanner('winch'); }
   }
