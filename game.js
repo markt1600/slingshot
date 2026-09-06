@@ -139,6 +139,10 @@ function resetSpectators(){
     dir:i%2?1:-1,speed:12+(i%5)*2,runSpeed:65+(i%7)*6,
     wait:sp.walker?(i%4===0?1.5:0):Infinity,turnIn:2+(i%5),
     panicAt:Infinity,panicking:false,walkPh:sp.ph,
+    behavior:sp.walker?'strolling':'watching',vx:0,pointT:0,lookT:0,
+    gestureIn:1+(i%9)*.7,reactionLeft:0,shelterX:0,lookDir:1,
+    skin:['#bc9171','#d4ad8b','#986e51','#b7896b'][i%4],
+    trousers:['#364249','#3e4140','#4b4942','#303f4e'][i%4],
     shirt:SHIRTS[i%4],seat:i%4,face:'happy',dmg:{},mode:'landed',
   }));
 }
@@ -149,25 +153,53 @@ function panicSpectators(){
   DECOR.spect.forEach((sp,i)=>{
     if(!sp.alive) return;
     sp.panicAt=S.t+.05+(i%7)*.07;
-    sp.dir=sp.x<dangerX?-1:1;
-    sp.turnIn=.8+(i%6)*.3;
+    sp.escapeDir=sp.x<dangerX?-1:1;
+    sp.shelterX=sp.escapeDir<0?28+(i%7)*8:SW-28-(i%7)*8;
+    sp.reactionLeft=.25+(i%5)*.12;
   });
 }
 function stepSpectators(dt){
   for(const sp of DECOR.spect){
     if(!sp.alive) continue;
-    if(S.t>=sp.panicAt){sp.panicking=true;sp.face='scared';sp.wait=0;}
-    if(!sp.panicking&&!sp.walker) continue;
-    if(sp.wait>0){sp.wait=Math.max(0,sp.wait-dt);sp.mode='landed';continue;}
-    sp.mode='boarding';
-    sp.x+=sp.dir*(sp.panicking?sp.runSpeed:sp.speed)*dt;
-    sp.walkPh+=dt*(sp.panicking?19:5);
-    sp.turnIn-=dt;
-    if(sp.x<24||sp.x>SW-24){sp.x=clamp(sp.x,24,SW-24);sp.dir*=-1;}
-    if(sp.turnIn<=0){
-      if(sp.panicking){sp.dir*=-1;sp.turnIn=rnd(.8,2.5);}
-      else{sp.wait=rnd(1.5,4);sp.turnIn=rnd(3,7);}
+    sp.pointT=Math.max(0,sp.pointT-dt);sp.lookT=Math.max(0,sp.lookT-dt);
+    sp.gestureIn-=dt;
+    if(S.t>=sp.panicAt&&!sp.panicking){
+      sp.panicking=true;sp.face='scared';sp.wait=0;sp.behavior='startled';
+      sp.lookT=sp.reactionLeft;sp.pointT=sp.seat%2===0?sp.reactionLeft:0;
     }
+    if(sp.gestureIn<=0){
+      sp.lookT=rnd(.8,1.8);
+      // Running people glance back briefly; stationary onlookers sometimes point.
+      if(sp.behavior!=='fleeing'&&Math.random()<.4)sp.pointT=rnd(.6,1.3);
+      sp.gestureIn=rnd(3,7);
+    }
+    let targetSpeed=0;
+    if(sp.panicking){
+      if(sp.behavior==='startled'){
+        sp.reactionLeft-=dt;
+        if(sp.reactionLeft<=0){sp.behavior='fleeing';sp.dir=sp.escapeDir;sp.pointT=0;}
+      }
+      if(sp.behavior==='fleeing'){
+        const remaining=(sp.shelterX-sp.x)*sp.escapeDir;
+        if(remaining<=1){sp.behavior='sheltered';sp.lookT=2;}
+        else targetSpeed=sp.escapeDir*Math.min(sp.runSpeed,Math.sqrt(2*180*remaining));
+      }
+    }else if(sp.walker){
+      if(sp.wait>0){sp.wait=Math.max(0,sp.wait-dt);sp.behavior='watching';}
+      else{
+        sp.behavior='strolling';targetSpeed=sp.dir*sp.speed;sp.turnIn-=dt;
+        if(sp.turnIn<=0){sp.wait=rnd(1.5,4);sp.lookT=sp.wait;sp.turnIn=rnd(3,7);}
+      }
+    }
+    // Accelerate and brake rather than instantly sliding at full speed.
+    const acceleration=sp.panicking?180:45;
+    sp.vx+=clamp(targetSpeed-sp.vx,-acceleration*dt,acceleration*dt);
+    sp.x+=sp.vx*dt;
+    if(sp.x<24||sp.x>SW-24){sp.x=clamp(sp.x,24,SW-24);sp.vx=0;if(!sp.panicking)sp.dir*=-1;}
+    sp.mode=Math.abs(sp.vx)>1?'boarding':'landed';
+    sp.walkPh+=Math.abs(sp.vx)*dt/(sp.panicking?8:5);
+    const watching=sp.lookT>0||sp.pointT>0||sp.behavior==='watching'||sp.behavior==='sheltered';
+    sp.lookDir=watching?(W2SX(S.pod.x)<sp.x?-1:1):sp.dir;
   }
 }
 function drawSpectators(c){
@@ -177,11 +209,63 @@ function drawSpectators(c){
     const sz=RIDER_SCENE_SCALE;
     c.save();c.translate(sp.x,gy);
     c.fillStyle='rgba(24,35,32,.22)';c.beginPath();c.ellipse(0,1,sz*.85,2,0,0,TAU);c.fill();
-    c.scale(sp.dir,1);
-    const bob=sp.mode==='boarding'?Math.abs(Math.sin(sp.walkPh))*(sp.panicking?1.8:.5):0;
-    drawPerson(c,0,-2.71*sz-bob,sz,sp,sp.panicking?1:0);
+    drawSpectatorPerson(c,sp,sz);
     c.restore();
   }
+}
+function drawSpectatorPerson(c,sp,sz){
+  // Side-on, jointed figures: planted feet, bending knees and opposing arm swing.
+  const moving=Math.abs(sp.vx)>1,running=sp.behavior==='fleeing'&&moving;
+  const facing=moving?sp.dir:sp.lookDir,phase=sp.walkPh;
+  const stride=moving?(running?.95:.42):0;
+  const bob=moving?Math.cos(phase*2)*(running?.07:.025):0;
+  const lean=running?.25:sp.behavior==='startled'?-.12:0;
+  const hip=[0,-2.18+bob],shoulder=[lean,-3.62+bob];
+  c.save();c.scale(sz*facing,sz);c.lineCap='round';
+  const limb=(a,b,r1,r2,color)=>taperedLimb(c,a,b,r1,r2,color);
+  for(const side of [-1,1]){
+    const cycle=((phase+(side===1?Math.PI:0))%TAU)/TAU;
+    const swing=cycle<.5?1-4*cycle:-Math.cos((cycle-.5)*TAU);
+    const lift=cycle<.5?0:Math.sin((cycle-.5)*TAU);
+    const foot=[moving?swing*stride:side*.12,-.07-lift*(running?.55:.16)*(moving?1:0)];
+    const dx=foot[0]-hip[0],dy=foot[1]-hip[1],length=Math.hypot(dx,dy);
+    const segment=moving?1.18:1.06;
+    const bend=Math.sqrt(Math.max(0,segment**2-(length/2)**2));
+    const knee=[(hip[0]+foot[0])/2+dy/length*bend,(hip[1]+foot[1])/2-dx/length*bend];
+    c.globalAlpha=side===-1?.7:1;
+    limb(hip,knee,.17,.12,sp.trousers);limb(knee,foot,.12,.075,sp.trousers);
+    limb([foot[0]-.07,foot[1]],[foot[0]+.21,foot[1]],.085,.065,'#24282a');
+  }
+  c.globalAlpha=1;
+  c.fillStyle=surfaceGradient(c,-.3,0,.4,0,[[0,'#263338'],[.3,sp.shirt],[1,sp.shirt]]);
+  c.beginPath();c.moveTo(shoulder[0]-.22,shoulder[1]-.08);c.quadraticCurveTo(shoulder[0]+.28,shoulder[1]-.18,shoulder[0]+.3,shoulder[1]+.3);
+  c.lineTo(.23,hip[1]+.12);c.lineTo(-.25,hip[1]+.1);c.closePath();c.fill();
+  for(const side of [-1,1]){
+    const swing=Math.sin(phase+(side===1?Math.PI:0));
+    let elbow=[shoulder[0]+(running?.5:.22)*swing,shoulder[1]+.65];
+    let hand=[elbow[0]+(running?.45:.12)*swing,elbow[1]+(running?-.35:.62)];
+    if(!moving){elbow=[shoulder[0]-.05,shoulder[1]+.65];hand=[shoulder[0]+.06,shoulder[1]+1.22];}
+    if(sp.behavior==='startled'&&side===1){elbow=[shoulder[0]+.3,shoulder[1]+.4];hand=[shoulder[0]+.25,shoulder[1]-.25];}
+    if(sp.pointT>0&&side===1){
+      const look=sp.lookDir*facing,angle=clamp(Math.atan2(W2SY(S.pod.y)-W2SY(0)+3.8*sz,Math.abs(W2SX(S.pod.x)-sp.x)),-.9,-.12);
+      elbow=[shoulder[0]+look*.65*Math.cos(angle),shoulder[1]+.65*Math.sin(angle)];
+      hand=[shoulder[0]+look*1.35*Math.cos(angle),shoulder[1]+1.35*Math.sin(angle)];
+    }
+    c.globalAlpha=side===-1?.65:1;
+    const sleeve=[lerp(shoulder[0],elbow[0],.45),lerp(shoulder[1],elbow[1],.45)];
+    limb(shoulder,sleeve,.17,.13,sp.shirt);limb(sleeve,elbow,.105,.085,sp.skin);limb(elbow,hand,.085,.06,sp.skin);
+    if(sp.pointT>0&&side===1)limb(hand,[hand[0]+sp.lookDir*facing*.16,hand[1]-.04],.035,.02,sp.skin);
+  }
+  c.globalAlpha=1;
+  limb([shoulder[0],shoulder[1]-.02],[shoulder[0],shoulder[1]-.3],.11,.1,sp.skin);
+  c.save();c.translate(shoulder[0],shoulder[1]-.53);c.scale(sp.lookDir*facing,1);
+  // A visible profile makes head turns read even at the small scene scale.
+  if(sp.lookT>0||!moving)c.rotate(-.14);
+  c.fillStyle=sp.skin;c.beginPath();c.ellipse(0,0,.25,.34,0,0,TAU);c.fill();
+  c.beginPath();c.moveTo(.17,-.06);c.lineTo(.32,.04);c.lineTo(.18,.09);c.fill();
+  c.fillStyle=['#49332a','#302e2b','#866544','#423329'][sp.seat];c.beginPath();c.ellipse(-.06,-.17,.23,.21,-.3,Math.PI*.7,TAU);c.fill();
+  c.fillStyle='#293333';c.beginPath();c.arc(.15,-.07,.026,0,TAU);c.fill();
+  c.restore();c.restore();
 }
 function crushRadius(r){
   // how much of them is left determines the splat footprint:
