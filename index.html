@@ -40,7 +40,9 @@
       <div class="brandMotto" aria-hidden="true"><span>Pull.</span><span>Release.</span><strong>Hold on.</strong></div>
     </header>
     <div class="toolbar"><button id="pauseBtn" type="button">Pause</button><label>Playback <select id="speedSl"><option value="0.5">0.5× Slow</option><option value="1" selected>1× Real time</option><option value="3">3× Arcade</option></select></label><button id="previewBtn" aria-pressed="true">Flight path: on</button><span class="help">Drag to aim · Release to launch · Space to pause · R to reset</span></div>
-    <canvas id="scene" width="960" height="540" tabindex="0" aria-label="Slingshot ride. Drag the pod to aim and release to launch. Use arrow keys to aim and Enter to launch."></canvas>
+    <div class="scoreboard" aria-label="Carnage score"><span>Carnage <strong id="scoreValue">0</strong></span><span>Best <strong id="bestScoreValue">0</strong></span><small>Balloons +10 · Injuries +25 per level · Fatality +500 · Moving-target fling +500</small></div>
+    <div class="playHelp">Click balloons to pop · Hold a spectator to lift · Release to drop, or swipe and release to fling — any time</div>
+    <canvas id="scene" width="960" height="540" tabindex="0" aria-label="Slingshot ride. Drag the pod to aim and release to launch. Use arrow keys to aim and Enter to launch. Click balloons to pop. Hold and drag spectators, then release to drop or fling, before or during the ride."></canvas>
     <div id="flightHud"><span>RIDE STATUS<b id="phaseRead">BOARDING</b></span><span>SPEED<b id="speedRead">0 km/h</b></span><span>ALTITUDE<b id="altRead">10 m</b></span><span>PEAK ALTITUDE<b id="peakRead">10 m</b></span></div>
     <canvas id="graph" width="960" height="170"></canvas>
   </div>

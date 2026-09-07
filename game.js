@@ -95,11 +95,14 @@ function makeRiders(n, belted, chuted){
 }
 
 function resetGame(){
+  heldSpectator=null;pointerSamples=[];
+  if(activePointer!==null&&scene.hasPointerCapture(activePointer))scene.releasePointerCapture(activePointer);
+  activePointer=null;
   lastPanelPaint=-Infinity;
   dragging=false; scene.style.cursor='grab'; accumulator=0; paused=false; el('pauseBtn').textContent='Pause'; refreshLabels();
   const H = +ui.height.value, n = +ui.riders.value;
   S = {
-    phase:'boarding', t:0, tRelease:0, H, nRiders:n,
+    phase:'boarding', t:0, tRelease:0, H, nRiders:n,score:0,
     bo:0, bov:0, boardT:0,
     trail:[], bannerT:0, barT:0, barDone:false,
     accBase: +ui.acc.value/100,
@@ -113,7 +116,7 @@ function resetGame(){
     snapped:[false,false], snapWave:[0,0], secondSnapAt:null, podRot:0, podVr:0,
     plan:null, ejected:false, peakSp:0, peakVx:0, peakVy:0, bounceCount:0, prevVxSign:0, ejectQueue:[],
     series:[], seriesT0:0,
-    riders: makeRiders(n, ui.belts.checked, ui.chutes.checked),
+    riders: makeRiders(n, ui.belts.checked, ui.chutes.checked), spectatorBodies:[],
     particles:[], stains:[], texts:[],
     settleTimer:0, banner:'', bannerSub:'',
     confettiDone:false, ambulance:null, shake:0,
@@ -121,6 +124,7 @@ function resetGame(){
   };
   setBodiesH(n*148 + 6);
   resetSpectators();
+  paintScore();
   setControlsEnabled(true);
   updateBanner('boarding');
 }
@@ -141,7 +145,7 @@ function resetSpectators(){
     panicAt:Infinity,panicking:false,walkPh:sp.ph,
     behavior:sp.walker?'strolling':'watching',vx:0,pointT:0,lookT:0,
     gestureIn:1+(i%9)*.7,reactionLeft:0,shelterX:0,lookDir:1,
-    helpRider:null,helpOffset:0,millTarget:null,millWait:0,
+    helpRider:null,helpOffset:0,millTarget:null,millWait:0,body:null,
     skin:['#bc9171','#d4ad8b','#986e51','#b7896b'][i%4],
     trousers:['#364249','#3e4140','#4b4942','#303f4e'][i%4],
     shirt:SHIRTS[i%4],seat:i%4,face:'happy',dmg:{},mode:'landed',
@@ -226,11 +230,11 @@ function stepSpectators(dt){
 function assignSpectatorHelpers(){
   const reachable=r=>(r.mode==='landed'||(r.mode==='flying'&&r.groundContact))&&W2SX(r.x)>=24&&W2SX(r.x)<=SW-24;
   for(const sp of DECOR.spect){
-    if(sp.helpRider&&(!reachable(sp.helpRider)||!S.riders.includes(sp.helpRider))){
+    if(sp.helpRider&&(!reachable(sp.helpRider)||!scenePeople().includes(sp.helpRider))){
       sp.helpRider=null;sp.behavior='milling';sp.panicking=true;sp.millTarget=null;
     }
   }
-  for(const r of S.riders){
+  for(const r of scenePeople()){
     if(!reachable(r))continue;
     const assigned=DECOR.spect.filter(sp=>sp.alive&&sp.helpRider===r);
     const available=DECOR.spect.filter(sp=>sp.alive&&!sp.helpRider)
@@ -328,6 +332,7 @@ function crushSpectators(x,rad){
     }
   }
   if(n>0){
+    addScore(n*500);
     panicSpectators();
     S.crushed=(S.crushed||0)+n;
     SFX.splat(); S.shake=Math.max(S.shake,5);
@@ -388,16 +393,80 @@ function podPxR(){ return Math.max(cfg.podR*VIEW.s,22,S.nRiders*7); }
 
 /* ============================ INPUT ============================ */
 let dragging=false;
+let heldSpectator=null,activePointer=null,pointerSamples=[];
+let bestCarnage=0;
+try{const saved=Number(localStorage.getItem('slingshot-best-carnage'));if(Number.isFinite(saved))bestCarnage=Math.max(0,saved);}catch{}
+function paintScore(){el('scoreValue').textContent=S.score.toLocaleString();el('bestScoreValue').textContent=bestCarnage.toLocaleString();}
+function addScore(points){
+  S.score+=points;
+  if(S.score>bestCarnage){bestCarnage=S.score;try{localStorage.setItem('slingshot-best-carnage',String(bestCarnage));}catch{}}
+  paintScore();
+}
+function scoreInjuries(){
+  for(const r of scenePeople()){
+    const severity=Object.values(r.dmg).reduce((sum,v)=>sum+v,0)*25+(r.face==='dead'?500:0);
+    if(severity>(r.scoredDamage||0)){addScore(severity-(r.scoredDamage||0));r.scoredDamage=severity;}
+  }
+}
+function scenePeople(){return S.riders.concat(S.spectatorBodies);}
+function balloonPos(b){return [SW*b.f+Math.sin(S.t+b.ph)*14,SH-b.prog+20];}
+function popBalloon(b){
+  if(b.popped)return;
+  const [x,y]=balloonPos(b),wx=S2WX(x),wy=S2WY(y);
+  b.popped=true;b.popUntil=S.t+rnd(2.5,5);SFX.pop();addScore(10);
+  addText(wx,wy,'POP! 🎈','#fff',15);
+  for(let k=0;k<9;k++)S.particles.push({type:'spark',x:wx,y:wy,vx:rnd(-7,7),vy:rnd(-3,8),life:rnd(.3,.6),rot:0,vr:0,color:b.c});
+}
+function spectatorAt(X,Y){
+  return [...DECOR.spect].reverse().find(sp=>{
+    if(!sp.alive&&!sp.body)return false;
+    const x=sp.body?W2SX(sp.body.x):sp.x,y=sp.body?W2SY(sp.body.y):W2SY(0)-11;
+    return Math.abs(X-x)<12&&Math.abs(Y-y)<15;
+  });
+}
+function moveHeldSpectator(e){
+  const [X,Y]=canvasPos(e),r=heldSpectator;
+  r.x=S2WX(X);r.y=Math.max(.5,S2WY(Y));r.vx=r.vy=0;
+  pointerSamples.push({x:r.x,y:r.y,t:e.timeStamp});
+  pointerSamples=pointerSamples.filter(p=>e.timeStamp-p.t<=120).slice(-12);
+}
+function releaseSpectator(e,cancelled=false){
+  const r=heldSpectator;if(!r)return;
+  if(!cancelled)moveHeldSpectator(e);
+  const first=pointerSamples[0],last=pointerSamples.at(-1),dt=first&&last?(last.t-first.t)/1000:0;
+  r.vx=!cancelled&&dt>.008?clamp((last.x-first.x)/dt,-90,90):0;
+  r.vy=!cancelled&&dt>.008?clamp((last.y-first.y)/dt,-90,90):0;
+  r.mode='flying';r.ejT=S.t;r.groundContact=false;r.vr=-r.vx*.12;r.capsuleBonus=false;
+  r.flung=!cancelled&&Math.hypot(r.vx,r.vy)>4;
+  heldSpectator=null;pointerSamples=[];scene.style.cursor='grab';
+}
 function canvasPos(e){
   const r=scene.getBoundingClientRect();
   return [ (e.clientX-r.left)*SW/r.width, (e.clientY-r.top)*SH/r.height ];
 }
 scene.addEventListener('pointerdown', e=>{
-  if(S.phase!=='idle') return;
+  if(e.button!==0||activePointer!==null)return;
   const [X,Y]=canvasPos(e);
+  const balloon=DECOR.balloons.find(b=>{const [x,y]=balloonPos(b);return !b.popped&&((X-x)/11)**2+((Y-y)/14)**2<1;});
+  if(balloon){e.preventDefault();popBalloon(balloon);return;}
+  const sp=spectatorAt(X,Y);
+  if(sp){
+    e.preventDefault();
+    if(!sp.body){
+      sp.body={...makeRiders(1,false,false)[0],seat:sp.seat,shirt:sp.shirt,skin:sp.skin,trousers:sp.trousers,spectator:true};
+      S.spectatorBodies.push(sp.body);
+    }
+    sp.alive=false;sp.helpRider=null;heldSpectator=sp.body;
+    heldSpectator.mode='held';heldSpectator.groundContact=false;
+    if(heldSpectator.face!=='dead'&&heldSpectator.face!=='ko')heldSpectator.face='scared';
+    heldSpectator.rot=0;activePointer=e.pointerId;pointerSamples=[];
+    scene.setPointerCapture(e.pointerId);scene.style.cursor='grabbing';moveHeldSpectator(e);panicSpectators();return;
+  }
+  if(S.phase!=='idle')return;
   const px=W2SX(S.pod.x), py=W2SY(S.pod.y);
   if(Math.hypot(X-px,Y-py) < podPxR()+14){
     dragging=true; S.phase='dragging'; S.maxTensionRatio=0;
+    activePointer=e.pointerId;
     SFX.grab();
     scene.setPointerCapture(e.pointerId);
     scene.style.cursor='grabbing';
@@ -405,11 +474,20 @@ scene.addEventListener('pointerdown', e=>{
     dragTo(e);
   }
 });
-scene.addEventListener('pointermove', e=>{ if(dragging) dragTo(e); });
-scene.addEventListener('pointerup',   e=>{ if(dragging){ dragging=false; scene.style.cursor='grab'; release(); } });
-scene.addEventListener('pointercancel', cancelPull);
-scene.addEventListener('lostpointercapture', cancelPull);
-function cancelPull(){if(dragging){dragging=false;resetGame();scene.style.cursor='grab';}}
+scene.addEventListener('pointermove', e=>{if(e.pointerId!==activePointer)return;if(heldSpectator)moveHeldSpectator(e);else if(dragging)dragTo(e);});
+scene.addEventListener('pointerup', e=>{
+  if(e.pointerId!==activePointer)return;
+  if(heldSpectator)releaseSpectator(e);else if(dragging){dragging=false;scene.style.cursor='grab';release();}
+  activePointer=null;
+  if(scene.hasPointerCapture(e.pointerId))scene.releasePointerCapture(e.pointerId);
+});
+scene.addEventListener('pointercancel', e=>{if(e.pointerId===activePointer)cancelPull();});
+scene.addEventListener('lostpointercapture', e=>{if(e.pointerId===activePointer)cancelPull();});
+function cancelPull(){
+  if(heldSpectator)releaseSpectator(null,true);
+  activePointer=null;
+  if(dragging){dragging=false;resetGame();scene.style.cursor='grab';}
+}
 function dragTo(e){
   const [X,Y]=canvasPos(e);
   const maxPull=Math.min(0.95*S.H, 0.74*Math.max(S.H,55)+8); // pull back EITHER way
@@ -708,6 +786,7 @@ function tick(dt){
   stepBalloons(dt);
   stepParticles(dt);
   stepAmbulance(dt);
+  scoreInjuries();
 }
 
 /* -------- balloons drift up; flying bodies pop them -------- */
@@ -722,18 +801,13 @@ function stepBalloons(dt){
     if(wy<1) continue;
     // popped by the pod, a flying body, or a stray limb
     let hit = Math.hypot(S.pod.x-wx,S.pod.y-wy) < podPxR()/VIEW.s+1.2;
-    if(!hit) for(const r of S.riders){
+    if(!hit) for(const r of scenePeople()){
       if(r.mode==='flying' && Math.hypot(r.x-wx,r.y-wy) < 16/VIEW.s+1.2){ hit=true; break; }
     }
     if(!hit) for(const p of S.particles){
       if(p.type==='limb' && !p.rest && Math.hypot(p.x-wx,p.y-wy)<2){ hit=true; break; }
     }
-    if(hit){
-      b.popped=true; b.popUntil=S.t+rnd(2.5,5);
-      addText(wx,wy,'POP! 🎈','#fff',15);
-      SFX.pop();
-      for(let k=0;k<9;k++) S.particles.push({type:'spark',x:wx,y:wy,vx:rnd(-7,7),vy:rnd(-3,8),life:rnd(.3,.6),rot:0,vr:0,color:b.c});
-    }
+    if(hit)popBalloon(b);
   }
 }
 
@@ -863,7 +937,7 @@ function applyGDamage(g){
 /* -------- flying / landed riders -------- */
 function stepRiders(dt,podX,podY){
   if(podX===undefined){ podX=S.pod.x; podY=S.pod.y; }
-  for(const r of S.riders){
+  for(const r of scenePeople()){
     r.armWave+=dt*(r.mode==='flying'?16:6);   // panic flailing is FAST
     if(r.mode!=='flying') continue;
     r.vy-=GRAV*dt;
@@ -937,7 +1011,7 @@ function stepRiders(dt,podX,podY){
 /* -------- mid-air collisions: rider↔rider and rider↔pod -------- */
 function collideRiders(podX,podY){
   if(podX===undefined){ podX=S.pod.x; podY=S.pod.y; }
-  const fly=S.riders.filter(r=>r.mode==='flying');
+  const fly=scenePeople().filter(r=>r.mode==='flying');
   // collision sizes match what's DRAWN (pod renders at a minimum pixel size when zoomed out)
   const drawnPodR=cfg.podR;
   const minD=drawnPodR*0.95+0.5;
@@ -970,6 +1044,9 @@ function collideRiders(podX,podY){
       const rel=(r.vx-S.pod.vx)*nx+(r.vy-S.pod.vy)*ny;
       if(rel<0){
         S.hits=(S.hits||0)+1;
+        if(r.spectator&&r.flung&&!r.capsuleBonus&&-rel>4&&Math.hypot(S.pod.vx,S.pod.vy)>4){
+          r.capsuleBonus=true;addScore(500);addText(r.x,r.y+4,'MOVING TARGET +500','#ffd23f',18);
+        }
         if(r.chuteOpen||(r.hasChute&&!r.chuteTorn)){   // hit the pod? chute's gone. All bets off.
           r.chuteOpen=false; r.chuteTorn=true;
           addText(r.x,r.y+2.5,'CHUTE SHREDDED!!','#ff4444',16);
@@ -1775,9 +1852,9 @@ function drawTowersAndCords(c){
 
 
 function drawBoarders(c){for(const r of S.riders)if(r.mode==='boarding')drawPerson(c,W2SX(r.x),W2SY(r.y)-2.71*RIDER_SCENE_SCALE,RIDER_SCENE_SCALE,r,0);}
-function drawFlyingRiders(c){for(const r of S.riders){if(!['flying','landed'].includes(r.mode))continue;const X=W2SX(r.x),Y=W2SY(r.y),sz=RIDER_SCENE_SCALE;
+function drawFlyingRiders(c){for(const r of scenePeople()){if(!['held','flying','landed'].includes(r.mode))continue;const X=W2SX(r.x),Y=W2SY(r.y),sz=RIDER_SCENE_SCALE;
   if(r.chuteOpen||r.chuteLanded)drawParachute(c,X,Y,r);
-  c.save();c.translate(X,Y);c.rotate(-r.rot);drawPerson(c,0,-3,sz,r,r.mode==='flying'?1:0);c.restore();
+  c.save();c.translate(X,Y);c.rotate(r.mode==='held'?Math.sin(r.armWave)*.12:-r.rot);drawPerson(c,0,-3,sz,r,['flying','held'].includes(r.mode)?1:0);c.restore();
 }}
 function drawTrail(c){if(S.trail.length<2)return;c.strokeStyle='rgba(233,235,214,.2)';c.lineWidth=1;c.beginPath();S.trail.forEach((p,i)=>i?c.lineTo(W2SX(p.x),W2SY(p.y)):c.moveTo(W2SX(p.x),W2SY(p.y)));c.stroke();}
 function drawHint(c){const x=W2SX(S.pod.x),y=W2SY(S.pod.y)-podPxR()-20;c.fillStyle='rgba(18,38,47,.85)';c.beginPath();c.roundRect(x-115,y-18,230,30,6);c.fill();c.fillStyle='#f5e5c5';c.font='11px system-ui';c.textAlign='center';c.fillText('Drag to aim · Release to launch',x,y);}
@@ -1849,8 +1926,8 @@ function drawPerson(c,x,y,s,r,pose=0){
   if(imageReady("riders")){drawTexturedPerson(c,x,y,s,r,pose);return;}
   c.save();c.translate(x,y);c.scale(s,s);c.lineCap='round';
   const skin=r.skin||'#bc9171',limp=r.face==='dead'||r.face==='ko'||r.dmg.neck>=2;
-  const walking=r.mode==='boarding',airborne=r.mode==='flying';
-  const wave=walking?Math.sin(r.walkPh||0):airborne&&!limp?Math.sin((r.armWave||0)*.6):0;
+  const walking=r.mode==='boarding',airborne=['flying','held'].includes(r.mode);
+  const wave=r.mode==='held'&&!limp?Math.sin(r.armWave*2)*2:walking?Math.sin(r.walkPh||0):airborne&&!limp?Math.sin((r.armWave||0)*.6):0;
   const seated=r.mode==='seated',trousers=r.trousers||'#364249';
   // Natural proportions: approximately seven head lengths, articulated hips and knees.
   for(const side of [-1,1]){
@@ -2076,8 +2153,8 @@ function drawTexturedPerson(c,x,y,s,r,pose){
     c.beginPath();points.forEach(([px,py],i)=>i?c.lineTo(px,py):c.moveTo(px,py));c.closePath();c.clip();stamp();c.restore();
   };
   const limp=r.face==='dead'||r.face==='ko'||r.dmg.neck>=2;
-  const step=r.mode==='boarding'?Math.sin(r.walkPh||0)*(r.panicking?.42:.12):0;
-  const flutter=r.mode==='flying'&&!limp?Math.sin((r.armWave||0)*.55)*.19:0;
+  const step=r.mode==='held'&&!limp?Math.sin(r.armWave*2)*.45:r.mode==='boarding'?Math.sin(r.walkPh||0)*(r.panicking?.42:.12):0;
+  const flutter=['flying','held'].includes(r.mode)&&!limp?Math.sin((r.armWave||0)*.55)*.35:0;
   for(const side of [-1,1]){
     const leg=[[-.51,.29],[.01,.29],[.01,2.74],[-.84,2.74]].map(([px,py])=>[side===1?-px:px,py]);
     if(r.dmg.legs!==3)piece(leg,[side*.25,.38],step*side,r.mode==='seated'?.68:1);
