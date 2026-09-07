@@ -44,6 +44,7 @@ const cfg = {
   brakeAt: 9.0,       // sim-seconds of free bouncing before the ride brake ramps in (~2 full cycles)
   Tmax: 52000,        // rated max tension per cord at 100% rope strength (N) — beefy by default
   riderTerminalSpeed: 55, // approximate spread-body terminal speed in m/s
+  spectatorGravityScale: 1.5, // snappier mouse-driven falls; capsule/rider gravity is unchanged
   ejectVmax: 36,      // cap so thrown bodies still land on screen (m/s)
   chuteVmax: 15,      // descent cap with a parachute — only slightly slower, for snappy gameplay
   platformY: 10,      // pod center height when latched — boarding deck is up at 10 m
@@ -427,15 +428,40 @@ function spectatorAt(X,Y){
 function moveHeldSpectator(e){
   const [X,Y]=canvasPos(e),r=heldSpectator;
   r.x=S2WX(X);r.y=Math.max(.5,S2WY(Y));r.vx=r.vy=0;
-  pointerSamples.push({x:r.x,y:r.y,t:e.timeStamp});
-  pointerSamples=pointerSamples.filter(p=>e.timeStamp-p.t<=120).slice(-12);
+  const events=typeof e.getCoalescedEvents==='function'?e.getCoalescedEvents():[];
+  for(const event of [...events,e]){
+    const [px,py]=canvasPos(event),sample={x:S2WX(px),y:S2WY(py),t:event.timeStamp};
+    const last=pointerSamples.at(-1);
+    // A duplicate pointerup must not dilute a flick, nor refresh stale movement.
+    if(last&&(sample.t<=last.t||(sample.x===last.x&&sample.y===last.y)))continue;
+    pointerSamples.push(sample);
+    // Preserve an anchor before the recent window, including sparse pointer events.
+    while(pointerSamples.length>2&&sample.t-pointerSamples[1].t>100)pointerSamples.shift();
+  }
+}
+function spectatorReleaseVelocity(time){
+  const last=pointerSamples.at(-1);
+  if(!last||pointerSamples.length<2||time-last.t>80)return {vx:0,vy:0};
+  const cutoff=last.t-40;
+  let first=pointerSamples[0];
+  for(let i=1;i<pointerSamples.length;i++){
+    const next=pointerSamples[i];
+    if(next.t>=cutoff){
+      if(first.t<cutoff){const f=(cutoff-first.t)/(next.t-first.t);first={x:lerp(first.x,next.x,f),y:lerp(first.y,next.y,f),t:cutoff};}
+      break;
+    }
+    first=next;
+  }
+  const dt=Math.max(.001,(last.t-first.t)/1000);
+  const vx=(last.x-first.x)/dt,vy=(last.y-first.y)/dt;
+  const limit=Math.min(1,90/Math.max(1,Math.hypot(vx,vy)));
+  return {vx:vx*limit,vy:vy*limit};
 }
 function releaseSpectator(e,cancelled=false){
   const r=heldSpectator;if(!r)return;
   if(!cancelled)moveHeldSpectator(e);
-  const first=pointerSamples[0],last=pointerSamples.at(-1),dt=first&&last?(last.t-first.t)/1000:0;
-  r.vx=!cancelled&&dt>.008?clamp((last.x-first.x)/dt,-90,90):0;
-  r.vy=!cancelled&&dt>.008?clamp((last.y-first.y)/dt,-90,90):0;
+  const velocity=cancelled?{vx:0,vy:0}:spectatorReleaseVelocity(e.timeStamp);
+  r.vx=velocity.vx;r.vy=velocity.vy;
   r.mode='flying';r.ejT=S.t;r.groundContact=false;r.vr=-r.vx*.12;r.capsuleBonus=false;
   r.flung=!cancelled&&Math.hypot(r.vx,r.vy)>4;
   heldSpectator=null;pointerSamples=[];scene.style.cursor='grab';
@@ -940,9 +966,10 @@ function stepRiders(dt,podX,podY){
   for(const r of scenePeople()){
     r.armWave+=dt*(r.mode==='flying'?16:6);   // panic flailing is FAST
     if(r.mode!=='flying') continue;
-    r.vy-=GRAV*dt;
+    const gravity=GRAV*(r.spectator?cfg.spectatorGravityScale:1);
+    r.vy-=gravity*dt;
     // Quadratic aerodynamic drag: small at low speed, increasing toward terminal speed.
-    const airDrag=GRAV/(cfg.riderTerminalSpeed**2)*Math.hypot(r.vx,r.vy);
+    const airDrag=gravity/(cfg.riderTerminalSpeed**2)*Math.hypot(r.vx,r.vy);
     const airFactor=1/(1+airDrag*dt);
     r.vx*=airFactor; r.vy*=airFactor;
     // parachute: healthy riders pull the cord once they're falling

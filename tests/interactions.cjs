@@ -8,6 +8,24 @@ const {pathToFileURL}=require('node:url');
     const page=await browser.newPage({viewport:{width:1500,height:1100}}),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
     await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
+    await page.evaluate(()=>{
+      paused=true;ui.snd.checked=false;
+      const check=(samples,time,vx,vy)=>{
+        pointerSamples=samples;const actual=spectatorReleaseVelocity(time);
+        if(Math.abs(actual.vx-vx)>.01||Math.abs(actual.vy-vy)>.01)throw Error('Release velocity: '+JSON.stringify(actual));
+      };
+      check([{x:0,y:0,t:0},{x:.2,y:.1,t:4}],5,50,25); // very fast flick
+      check([{x:0,y:0,t:0},{x:2,y:0,t:200}],202,10,0); // sparse events retain anchor
+      check([{x:0,y:0,t:0},{x:1,y:0,t:60},{x:-1,y:1,t:100}],105,-50,25); // last-second reversal
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],140,0,0); // holding still drops
+      pointerSamples=[];
+      resetGame();paused=true;S.pod.x=1000;
+      const rider=S.riders[0];Object.assign(rider,{mode:'flying',x:0,y:100,vx:0,vy:0,hasChute:false});
+      const spectator={...rider,dmg:{...rider.dmg},spectator:true,x:30};S.spectatorBodies.push(spectator);
+      for(let i=0;i<240;i++)stepRiders(1/240);
+      if(!(spectator.y<rider.y-2&&spectator.vy<rider.vy*1.4))throw Error('Spectator falls are not faster');
+      if(rider.vy>-9.3||rider.vy<-9.81)throw Error('Ride gravity changed');
+    });
     const point=async(x,y)=>page.evaluate(({x,y})=>{const b=scene.getBoundingClientRect();return {x:b.x+x*b.width/SW,y:b.y+y*b.height/SH};},{x,y});
     for(const phase of ['boarding','idle','flying','done']){
       await page.evaluate(phase=>{
