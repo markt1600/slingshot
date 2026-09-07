@@ -12,6 +12,7 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 - Tab to the scene, use arrow keys to aim, and Enter to launch.
 - Space pauses/resumes, and R resets, when focus is outside a form control.
 - Click a balloon to pop it for 10 points, at any ride phase.
+- Balloons also pop for 10 points when hit by a thrown or held bystander, including fast crossings between frames.
 - Hold and drag a spectator into the air. Release after holding still to drop, or swipe and release to fling. You can catch them again in flight. Cancelled pointer gestures drop without throwing.
 - Releasing uses the mouse motion recorded before button-up. The final stopped position or slight release jitter does not overwrite the buffered throw velocity.
 - Throws follow recent pointer movement, including fast flicks and direction changes. Sparse movement after a long hold uses a bounded velocity estimate. Stopping briefly before release retains full momentum for 250 milliseconds, then fades smoothly to a drop after 400 milliseconds without movement. Spectators fall with 1.5× gravity for a snappier arcade feel; capsule and ride-passenger gravity remain unchanged.
