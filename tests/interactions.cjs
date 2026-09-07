@@ -38,6 +38,16 @@ const {pathToFileURL}=require('node:url');
         const x=spectator.x;stepRiders(.05);
         if(spectator.x<=x+.4)throw Error('Release momentum did not move the spectator');
       }
+      // A slightly different button-up coordinate is not fresh mouse movement.
+      for(const delay of [0,100,250,400]){
+        heldSpectator=spectator;pointerSamples=[];spectator.mode='held';
+        moveHeldSpectator(event(700,200,0));moveHeldSpectator(event(710,190,40));
+        const expected=spectatorReleaseVelocity(40+delay);
+        releaseSpectator(event(710.2,190.1,40+delay));
+        if(Math.abs(spectator.vx-expected.vx)>1e-8||Math.abs(spectator.vy-expected.vy)>1e-8)throw Error('Button-up overwrote pre-release inertia');
+        if(delay<=250&&spectator.vx<=0)throw Error('Stopped release lost buffered throw');
+        if(delay===400&&(spectator.vx!==0||spectator.vy!==0))throw Error('Button-up jitter revived expired throw');
+      }
     });
     const point=async(x,y)=>page.evaluate(({x,y})=>{const b=scene.getBoundingClientRect();return {x:b.x+x*b.width/SW,y:b.y+y*b.height/SH};},{x,y});
     for(const phase of ['boarding','idle','flying','done']){
@@ -102,6 +112,19 @@ const {pathToFileURL}=require('node:url');
     assert.equal(await page.evaluate(()=>S.score),0);assert.equal(await page.evaluate(()=>bestCarnage),best);
     assert.equal(await page.evaluate(()=>S.spectatorBodies.length),0);
     await page.reload();assert.equal(await page.evaluate(()=>bestCarnage),best,'best score was not persisted');
+    await page.evaluate(()=>{
+      resetGame();paused=true;ui.snd.checked=false;computeView();S.pod.x=1000;
+      const b=DECOR.balloons[0];Object.assign(b,{f:.7,ph:0,prog:300,popped:false});
+      const [x,y]=balloonPos(b),r={...makeRiders(1,false,false)[0],spectator:true,mode:'flying',x:S2WX(x+50),y:S2WY(y),stepX:S2WX(x-50),stepY:S2WY(y)};
+      S.spectatorBodies.push(r);stepBalloons(0);
+      if(!b.popped||S.score!==10)throw Error('Fast thrown bystander missed balloon');
+      stepBalloons(0);if(S.score!==10)throw Error('Balloon collision scored twice');
+      b.popped=false;heldSpectator=r;r.mode='held';pointerSamples=[];
+      const event=(px,py,t)=>{const rect=scene.getBoundingClientRect();return {clientX:rect.x+px*rect.width/SW,clientY:rect.y+py*rect.height/SH,timeStamp:t};};
+      moveHeldSpectator(event(x-50,y,0));moveHeldSpectator(event(x+50,y,20));
+      if(!b.popped||S.score!==20)throw Error('Held bystander missed balloon');
+      cancelPull();
+    });
     await page.setViewportSize({width:390,height:844});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     assert.deepEqual(errors,[]);

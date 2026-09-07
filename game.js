@@ -419,6 +419,14 @@ function popBalloon(b){
   addText(wx,wy,'POP! 🎈','#fff',15);
   for(let k=0;k<9;k++)S.particles.push({type:'spark',x:wx,y:wy,vx:rnd(-7,7),vy:rnd(-3,8),life:rnd(.3,.6),rot:0,vr:0,color:b.c});
 }
+function popBalloonsAlongBody(x0,y0,x1,y1){
+  for(const b of DECOR.balloons){
+    if(b.popped)continue;
+    const [x,y]=balloonPos(b),dx=x1-x0,dy=y1-y0;
+    const t=clamp(((x-x0)*dx+(y-y0)*dy)/(dx*dx+dy*dy||1),0,1);
+    if(Math.hypot(x-x0-dx*t,y-y0-dy*t)<16)popBalloon(b);
+  }
+}
 function spectatorAt(X,Y){
   return [...DECOR.spect].reverse().find(sp=>{
     if((!sp.alive&&!sp.body)||sp.body?.mode==='taken')return false;
@@ -428,6 +436,8 @@ function spectatorAt(X,Y){
 }
 function moveHeldSpectator(e){
   const [X,Y]=canvasPos(e),r=heldSpectator;
+  const from=pointerSamples.at(-1);
+  if(from)popBalloonsAlongBody(W2SX(from.x),W2SY(from.y),X,Y);
   r.x=S2WX(X);r.y=Math.max(.5,S2WY(Y));r.vx=r.vy=0;
   const events=typeof e.getCoalescedEvents==='function'?e.getCoalescedEvents():[];
   for(const event of [...events,e]){
@@ -467,7 +477,13 @@ function spectatorReleaseVelocity(time){
 }
 function releaseSpectator(e,cancelled=false){
   const r=heldSpectator;if(!r)return;
-  if(!cancelled)moveHeldSpectator(e);
+  if(!cancelled){
+    // Button-up is not a new motion sample: a final stationary/slightly shifted
+    // coordinate must not replace the velocity of the gesture just completed.
+    // Retain a fallback for devices that report movement only on button-up.
+    if(pointerSamples.length<2)moveHeldSpectator(e);
+    const [X,Y]=canvasPos(e);r.x=S2WX(X);r.y=Math.max(.5,S2WY(Y));
+  }
   const velocity=cancelled?{vx:0,vy:0}:spectatorReleaseVelocity(e.timeStamp);
   r.vx=velocity.vx;r.vy=velocity.vy;
   r.mode='flying';r.ejT=S.t;r.groundContact=false;r.vr=-r.vx*.12;r.capsuleBonus=false;
@@ -827,6 +843,10 @@ function tick(dt){
 
 /* -------- balloons drift up; flying bodies pop them -------- */
 function stepBalloons(dt){
+  for(const r of scenePeople()){
+    if(!['flying','held'].includes(r.mode))continue;
+    popBalloonsAlongBody(W2SX(r.mode==='flying'?(r.stepX??r.x):r.x),W2SY(r.mode==='flying'?(r.stepY??r.y):r.y),W2SX(r.x),W2SY(r.y));
+  }
   for(const b of DECOR.balloons){
     if(b.popped){ if(S.t>b.popUntil){ b.popped=false; b.prog=-rnd(20,200); } continue; }
     b.prog+=dt*16;
