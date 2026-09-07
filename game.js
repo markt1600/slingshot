@@ -467,7 +467,13 @@ function spectatorReleaseVelocity(time){
 }
 function releaseSpectator(e,cancelled=false){
   const r=heldSpectator;if(!r)return;
-  if(!cancelled)moveHeldSpectator(e);
+  if(!cancelled){
+    // Button-up is not a new motion sample: a final stationary/slightly shifted
+    // coordinate must not replace the velocity of the gesture just completed.
+    // Retain a fallback for devices that report movement only on button-up.
+    if(pointerSamples.length<2)moveHeldSpectator(e);
+    const [X,Y]=canvasPos(e);r.x=S2WX(X);r.y=Math.max(.5,S2WY(Y));
+  }
   const velocity=cancelled?{vx:0,vy:0}:spectatorReleaseVelocity(e.timeStamp);
   r.vx=velocity.vx;r.vy=velocity.vy;
   r.mode='flying';r.ejT=S.t;r.groundContact=false;r.vr=-r.vx*.12;r.capsuleBonus=false;

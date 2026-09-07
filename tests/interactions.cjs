@@ -38,6 +38,16 @@ const {pathToFileURL}=require('node:url');
         const x=spectator.x;stepRiders(.05);
         if(spectator.x<=x+.4)throw Error('Release momentum did not move the spectator');
       }
+      // A slightly different button-up coordinate is not fresh mouse movement.
+      for(const delay of [0,100,250,400]){
+        heldSpectator=spectator;pointerSamples=[];spectator.mode='held';
+        moveHeldSpectator(event(700,200,0));moveHeldSpectator(event(710,190,40));
+        const expected=spectatorReleaseVelocity(40+delay);
+        releaseSpectator(event(710.2,190.1,40+delay));
+        if(Math.abs(spectator.vx-expected.vx)>1e-8||Math.abs(spectator.vy-expected.vy)>1e-8)throw Error('Button-up overwrote pre-release inertia');
+        if(delay<=250&&spectator.vx<=0)throw Error('Stopped release lost buffered throw');
+        if(delay===400&&(spectator.vx!==0||spectator.vy!==0))throw Error('Button-up jitter revived expired throw');
+      }
     });
     const point=async(x,y)=>page.evaluate(({x,y})=>{const b=scene.getBoundingClientRect();return {x:b.x+x*b.width/SW,y:b.y+y*b.height/SH};},{x,y});
     for(const phase of ['boarding','idle','flying','done']){
