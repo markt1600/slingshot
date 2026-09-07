@@ -1,0 +1,79 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const {pathToFileURL}=require('node:url');
+(async()=>{
+  const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
+  try{
+    const page=await browser.newPage({viewport:{width:1500,height:1100}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.goto(pathToFileURL(path.resolve(__dirname,'../index.html')).href);
+    const point=async(x,y)=>page.evaluate(({x,y})=>{const b=scene.getBoundingClientRect();return {x:b.x+x*b.width/SW,y:b.y+y*b.height/SH};},{x,y});
+    for(const phase of ['boarding','idle','flying','done']){
+      await page.evaluate(phase=>{
+        resetGame();ui.snd.checked=false;S.riders.forEach(r=>r.mode='seated');S.phase='dragging';release();S.phase=phase;paused=true;computeView();
+        Object.assign(DECOR.balloons[0],{f:.8,ph:0,prog:300,popped:false});
+        DECOR.spect.at(-1).x=800;
+      },phase);
+      const bp=await page.evaluate(()=>balloonPos(DECOR.balloons[0])),b=await point(...bp);
+      await page.mouse.click(b.x,b.y);
+      assert.equal(await page.evaluate(()=>DECOR.balloons[0].popped),true);
+      assert.equal(await page.evaluate(()=>S.score),10);
+      await page.mouse.click(b.x,b.y);assert.equal(await page.evaluate(()=>S.score),10);
+      const gy=await page.evaluate(()=>W2SY(0)-11),sp=await point(800,gy),air=await point(800,200);
+      await page.mouse.move(sp.x,sp.y);await page.mouse.down();await page.mouse.move(air.x,air.y,{steps:8});
+      assert.equal(await page.evaluate(()=>heldSpectator.mode),'held');
+      assert.equal(await page.evaluate(()=>S.phase),phase);
+      if(phase==='flying'){
+        const before=await page.locator('#scene').screenshot();
+        await page.evaluate(()=>{heldSpectator.armWave+=1;drawScene();});
+        assert(!before.equals(await page.locator('#scene').screenshot()),'held struggle does not animate');
+        await page.screenshot({path:path.resolve(__dirname,'../test-results/interactive-carnage.png')});
+      }
+      const y=await page.evaluate(()=>heldSpectator.y);
+      await page.evaluate(()=>stepRiders(.1));assert.equal(await page.evaluate(()=>heldSpectator.y),y,'held body falls');
+      await page.waitForTimeout(160);await page.mouse.up();
+      assert.equal(await page.evaluate(()=>heldSpectator),null);
+      assert.equal(await page.evaluate(()=>S.spectatorBodies[0].vx),0,'stale mouse speed throws a stationary hold');
+      await page.evaluate(()=>{
+        S.pod.x=1000;
+        for(let i=0;i<240*20&&S.spectatorBodies[0].mode!=='landed';i++){S.t+=1/240;stepRiders(1/240);}
+        scoreInjuries();
+      });
+      assert.equal(await page.evaluate(()=>S.spectatorBodies[0].mode),'landed');
+      assert(await page.evaluate(()=>S.spectatorBodies[0].landLvl>=3),'height drop did not use injury rules');
+      const score=await page.evaluate(()=>S.score);assert(score>10);
+      await page.evaluate(()=>scoreInjuries());assert.equal(await page.evaluate(()=>S.score),score);
+    }
+    // A fresh moving release transfers mouse velocity; cancel drops without a throw.
+    await page.evaluate(()=>{resetGame();paused=true;ui.snd.checked=false;computeView();DECOR.spect.at(-1).x=800;});
+    const start=await point(800,await page.evaluate(()=>W2SY(0)-11)),air=await point(740,250);
+    await page.mouse.move(start.x,start.y);await page.mouse.down();
+    await page.mouse.move(air.x,air.y,{steps:10});await page.mouse.up();
+    assert(await page.evaluate(()=>Math.hypot(S.spectatorBodies[0].vx,S.spectatorBodies[0].vy)>4),'fling has no momentum');
+    const center=await page.evaluate(()=>[W2SX(S.spectatorBodies[0].x),W2SY(S.spectatorBodies[0].y)]),again=await point(...center);
+    await page.mouse.move(again.x,again.y);await page.mouse.down();
+    assert(await page.evaluate(()=>!!heldSpectator),'airborne spectator cannot be caught');
+    await page.evaluate(()=>scene.dispatchEvent(new PointerEvent('pointercancel',{pointerId:activePointer})));
+    await page.mouse.up();assert.equal(await page.evaluate(()=>heldSpectator),null);
+    assert.equal(await page.evaluate(()=>S.spectatorBodies[0].vx),0);
+    // Bonus is restricted to a thrown spectator hitting a moving capsule, once per throw.
+    await page.evaluate(()=>{
+      const r=S.spectatorBodies[0];S.t=2;Object.assign(S.pod,{x:0,y:30,vx:10,vy:0});
+      Object.assign(r,{x:-1,y:30,vx:30,vy:0,mode:'flying',flung:true,capsuleBonus:false,ejT:0});
+      collideRiders(0,30);
+    });
+    assert.equal(await page.evaluate(()=>S.score),500);
+    assert.equal(await page.evaluate(()=>S.spectatorBodies[0].capsuleBonus),true);
+    await page.evaluate(()=>{const r=S.spectatorBodies[0];Object.assign(r,{x:-1,y:30,vx:30,vy:0});S.pod.vx=10;collideRiders(0,30);});
+    assert.equal(await page.evaluate(()=>S.score),500);
+    const best=await page.evaluate(()=>bestCarnage);await page.evaluate(()=>resetGame());
+    assert.equal(await page.evaluate(()=>S.score),0);assert.equal(await page.evaluate(()=>bestCarnage),best);
+    assert.equal(await page.evaluate(()=>S.spectatorBodies.length),0);
+    await page.reload();assert.equal(await page.evaluate(()=>bestCarnage),best,'best score was not persisted');
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    assert.deepEqual(errors,[]);
+    console.log('PASS: balloon clicks and spectator grabs across ride phases, held physics, drops, flings, catch/cancel, injuries, scoring, bonus and mobile layout.');
+  }finally{await browser.close();}
+})();

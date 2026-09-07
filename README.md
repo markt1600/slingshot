@@ -11,6 +11,9 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 - Drag the capsule and release to launch.
 - Tab to the scene, use arrow keys to aim, and Enter to launch.
 - Space pauses/resumes, and R resets, when focus is outside a form control.
+- Click a balloon to pop it for 10 points, at any ride phase.
+- Hold and drag a spectator into the air. Release after holding still to drop, or swipe and release to fling. You can catch them again in flight. Cancelled pointer gestures drop without throwing.
+- Injuries score 25 points per damage level per body part, fatalities add 500, and crushing a bystander earns 500. Flinging a spectator into a moving capsule adds 500 once per throw. The current score resets with the ride; the best score is saved locally when browser storage is available.
 - Choose real time, slow motion, or the original 3× arcade pace.
 - The dotted aiming arc predicts the next two seconds assuming intact cords. Accidents and impacts can change the actual path.
 
