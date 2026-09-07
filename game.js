@@ -433,7 +433,12 @@ function moveHeldSpectator(e){
     const [px,py]=canvasPos(event),sample={x:S2WX(px),y:S2WY(py),t:event.timeStamp};
     const last=pointerSamples.at(-1);
     // A duplicate pointerup must not dilute a flick, nor refresh stale movement.
-    if(last&&(sample.t<=last.t||(sample.x===last.x&&sample.y===last.y)))continue;
+    if(last&&(sample.x===last.x&&sample.y===last.y))continue;
+    // Coarse timestamp clocks can give distinct positions the same timestamp.
+    if(last&&sample.t<=last.t)sample.t=last.t+1;
+    // No movement events arrive during a hold. Do not divide the next flick by
+    // that entire idle interval; use a bounded estimate for this sparse segment.
+    if(last&&sample.t-last.t>50)pointerSamples.push({...last,t:sample.t-50});
     pointerSamples.push(sample);
     // Preserve an anchor before the recent window, including sparse pointer events.
     while(pointerSamples.length>2&&sample.t-pointerSamples[1].t>100)pointerSamples.shift();
@@ -441,7 +446,7 @@ function moveHeldSpectator(e){
 }
 function spectatorReleaseVelocity(time){
   const last=pointerSamples.at(-1);
-  if(!last||pointerSamples.length<2||time-last.t>80)return {vx:0,vy:0};
+  if(!last||pointerSamples.length<2||time-last.t>=150)return {vx:0,vy:0};
   const cutoff=last.t-40;
   let first=pointerSamples[0];
   for(let i=1;i<pointerSamples.length;i++){
@@ -454,7 +459,9 @@ function spectatorReleaseVelocity(time){
   }
   const dt=Math.max(.001,(last.t-first.t)/1000);
   const vx=(last.x-first.x)/dt,vy=(last.y-first.y)/dt;
-  const limit=Math.min(1,90/Math.max(1,Math.hypot(vx,vy)));
+  // Allow a brief button-release delay, then fade smoothly into an intentional drop.
+  const freshness=clamp((150-(time-last.t))/50,0,1);
+  const limit=Math.min(1,90/Math.max(1,Math.hypot(vx,vy)))*freshness;
   return {vx:vx*limit,vy:vy*limit};
 }
 function releaseSpectator(e,cancelled=false){

@@ -17,7 +17,9 @@ const {pathToFileURL}=require('node:url');
       check([{x:0,y:0,t:0},{x:.2,y:.1,t:4}],5,50,25); // very fast flick
       check([{x:0,y:0,t:0},{x:2,y:0,t:200}],202,10,0); // sparse events retain anchor
       check([{x:0,y:0,t:0},{x:1,y:0,t:60},{x:-1,y:1,t:100}],105,-50,25); // last-second reversal
-      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],140,0,0); // holding still drops
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],140,50,0); // brief release delay retains flick
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],165,25,0); // smooth decay
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],200,0,0); // holding still drops
       pointerSamples=[];
       resetGame();paused=true;S.pod.x=1000;
       const rider=S.riders[0];Object.assign(rider,{mode:'flying',x:0,y:100,vx:0,vy:0,hasChute:false});
@@ -25,6 +27,16 @@ const {pathToFileURL}=require('node:url');
       for(let i=0;i<240;i++)stepRiders(1/240);
       if(!(spectator.y<rider.y-2&&spectator.vy<rider.vy*1.4))throw Error('Spectator falls are not faster');
       if(rider.vy>-9.3||rider.vy<-9.81)throw Error('Ride gravity changed');
+      // Exercise the full coordinate sampler + release, not just the estimator.
+      const event=(x,y,t)=>{const b=scene.getBoundingClientRect();return {clientX:b.x+x*b.width/SW,clientY:b.y+y*b.height/SH,timeStamp:t};};
+      for(const [start,end,release] of [[0,2000,2095],[0,0,1],[0,20,130]]){
+        heldSpectator=spectator;pointerSamples=[];spectator.mode='held';
+        moveHeldSpectator(event(700,200,start));moveHeldSpectator(event(730,190,end));
+        releaseSpectator(event(730,190,release));
+        if(spectator.vx<10||spectator.vy<=0)throw Error('Sparse/delayed flick became a drop');
+        const x=spectator.x;stepRiders(.05);
+        if(spectator.x<=x+.4)throw Error('Release momentum did not move the spectator');
+      }
     });
     const point=async(x,y)=>page.evaluate(({x,y})=>{const b=scene.getBoundingClientRect();return {x:b.x+x*b.width/SW,y:b.y+y*b.height/SH};},{x,y});
     for(const phase of ['boarding','idle','flying','done']){
