@@ -18,8 +18,9 @@ const {pathToFileURL}=require('node:url');
       check([{x:0,y:0,t:0},{x:2,y:0,t:200}],202,10,0); // sparse events retain anchor
       check([{x:0,y:0,t:0},{x:1,y:0,t:60},{x:-1,y:1,t:100}],105,-50,25); // last-second reversal
       check([{x:0,y:0,t:0},{x:2,y:0,t:40}],140,50,0); // brief release delay retains flick
-      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],165,25,0); // smooth decay
-      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],200,0,0); // holding still drops
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],290,50,0); // stop briefly, then release naturally
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],365,25,0); // smooth decay
+      check([{x:0,y:0,t:0},{x:2,y:0,t:40}],440,0,0); // holding still drops
       pointerSamples=[];
       resetGame();paused=true;S.pod.x=1000;
       const rider=S.riders[0];Object.assign(rider,{mode:'flying',x:0,y:100,vx:0,vy:0,hasChute:false});
@@ -29,7 +30,7 @@ const {pathToFileURL}=require('node:url');
       if(rider.vy>-9.3||rider.vy<-9.81)throw Error('Ride gravity changed');
       // Exercise the full coordinate sampler + release, not just the estimator.
       const event=(x,y,t)=>{const b=scene.getBoundingClientRect();return {clientX:b.x+x*b.width/SW,clientY:b.y+y*b.height/SH,timeStamp:t};};
-      for(const [start,end,release] of [[0,2000,2095],[0,0,1],[0,20,130]]){
+      for(const [start,end,release] of [[0,2000,2095],[0,0,1],[0,20,130],[0,20,270]]){
         heldSpectator=spectator;pointerSamples=[];spectator.mode='held';
         moveHeldSpectator(event(700,200,start));moveHeldSpectator(event(730,190,end));
         releaseSpectator(event(730,190,release));
@@ -62,7 +63,7 @@ const {pathToFileURL}=require('node:url');
       }
       const y=await page.evaluate(()=>heldSpectator.y);
       await page.evaluate(()=>stepRiders(.1));assert.equal(await page.evaluate(()=>heldSpectator.y),y,'held body falls');
-      await page.waitForTimeout(160);await page.mouse.up();
+      await page.waitForTimeout(450);await page.mouse.up();
       assert.equal(await page.evaluate(()=>heldSpectator),null);
       assert.equal(await page.evaluate(()=>S.spectatorBodies[0].vx),0,'stale mouse speed throws a stationary hold');
       await page.evaluate(()=>{

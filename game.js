@@ -447,7 +447,7 @@ function moveHeldSpectator(e){
 }
 function spectatorReleaseVelocity(time){
   const last=pointerSamples.at(-1);
-  if(!last||pointerSamples.length<2||time-last.t>=150)return {vx:0,vy:0};
+  if(!last||pointerSamples.length<2||time-last.t>=400)return {vx:0,vy:0};
   const cutoff=last.t-40;
   let first=pointerSamples[0];
   for(let i=1;i<pointerSamples.length;i++){
@@ -461,7 +461,7 @@ function spectatorReleaseVelocity(time){
   const dt=Math.max(.001,(last.t-first.t)/1000);
   const vx=(last.x-first.x)/dt,vy=(last.y-first.y)/dt;
   // Allow a brief button-release delay, then fade smoothly into an intentional drop.
-  const freshness=clamp((150-(time-last.t))/50,0,1);
+  const freshness=clamp((400-(time-last.t))/150,0,1);
   const limit=Math.min(1,90/Math.max(1,Math.hypot(vx,vy)))*freshness;
   return {vx:vx*limit,vy:vy*limit};
 }
