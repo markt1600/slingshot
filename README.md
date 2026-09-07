@@ -13,7 +13,7 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 - Space pauses/resumes, and R resets, when focus is outside a form control.
 - Click a balloon to pop it for 10 points, at any ride phase.
 - Hold and drag a spectator into the air. Release after holding still to drop, or swipe and release to fling. You can catch them again in flight. Cancelled pointer gestures drop without throwing.
-- Throws follow the last 40 milliseconds of pointer movement, including fast flicks and direction changes. Holding still for over 80 milliseconds releases without a throw. Spectators fall with 1.5× gravity for a snappier arcade feel; capsule and ride-passenger gravity remain unchanged.
+- Throws follow recent pointer movement, including fast flicks and direction changes. Sparse movement after a long hold uses a bounded velocity estimate. Brief button-release delays retain momentum, fading to a drop after 150 milliseconds without movement. Spectators fall with 1.5× gravity for a snappier arcade feel; capsule and ride-passenger gravity remain unchanged.
 - Injuries score 25 points per damage level per body part, fatalities add 500, and crushing a bystander earns 500. Flinging a spectator into a moving capsule adds 500 once per throw. The current score resets with the ride; the best score is saved locally when browser storage is available.
 - Choose real time, slow motion, or the original 3× arcade pace.
 - The dotted aiming arc predicts the next two seconds assuming intact cords. Accidents and impacts can change the actual path.
