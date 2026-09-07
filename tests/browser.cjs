@@ -113,6 +113,35 @@ console.log('spectator assistance',await page.evaluate(()=>{
   resetGame();if(DECOR.spect.some(sp=>sp.helpRider))throw Error('Reset retained helper assignments');
   return 'touchdown, approach, attendance, multiple riders, replacement and rescue cleanup passed';
 }));
+console.log('capsule contact and rescue',await page.evaluate(()=>{
+  for(const height of [20,45,200]){
+    ui.height.value=height;resetGame();computeView();S.riders.forEach(r=>r.mode='seated');
+    const radius=(podPxR()+RIDER_SCENE_SCALE)/VIEW.s;
+    const r={...makeRiders(1,false,false)[0],spectator:true,mode:'flying',x:-radius+.1,y:30,vx:30,vy:0,ejT:S.t};
+    S.spectatorBodies.push(r);Object.assign(S.pod,{x:0,y:30,vx:0,vy:0});
+    collideRiders(0,30);if(!S.hits)throw Error('Visible cage edge missed immediate spectator throw');
+    const hits=S.hits;
+    Object.assign(r,{x:radius+3,y:30,stepX:-radius-3,stepY:30,vx:90,vy:0});S.pod.vx=0;
+    collideRiders(0,30,.1,0,30);
+    if(S.hits!==hits+1||r.x>=0)throw Error('Fast crossing tunneled through capsule');
+  }
+  resetGame();computeView();ui.belts.checked=true;S.belts=true;S.riders.forEach(r=>r.mode='seated');
+  S.phase='dragging';release();S.plan.snap=false;S.plan.beltFail=false;S.Tmax=1e12;
+  for(let i=0;i<240*11&&S.phase!=='done';i++)tick(1/240);
+  if(S.phase!=='done'||S.t-S.tRelease>10.1||Math.hypot(S.pod.vx,S.pod.vy)>1e-6)throw Error('Belted ride return exceeded bound');
+  ui.riders.value=4;resetGame();computeView();
+  S.riders.forEach((r,i)=>{r.mode='landed';r.x=(i-2)*10;r.y=.5;r.face=i<3?'pain':'happy';if(i<3)r.dmg.legs=2;});
+  stepAmbulance(.01);
+  if(S.ambulances.length!==3||new Set(S.ambulances.map(a=>a.patient)).size!==3)throw Error('Missing independent ambulances');
+  stepAmbulance(.01);if(S.ambulances.length!==3)throw Error('Duplicate dispatch');
+  const first=S.ambulances[0];first.x=first.targetX+7;first.phase='wait';first.timer=1.6;stepAmbulance(.1);
+  if(first.patient.mode!=='taken'||S.riders.filter(r=>r.mode==='taken').length!==1)throw Error('Ambulance collected another vehicle’s patients');
+  const x=first.x;stepAmbulance(.1);if(first.x<=x)throw Error('Departing ambulance drives backward');
+  for(let i=0;i<240*15;i++)stepAmbulance(1/240);
+  if(S.ambulances.length||S.riders.slice(0,3).some(r=>r.mode!=='taken')||S.riders[3].mode!=='landed')throw Error('Rescue did not finish or removed healthy survivor');
+  resetGame();if(S.ambulances.length)throw Error('Reset retained rescue vehicles');
+  return 'visible-size contacts, immediate throws, swept crossings, bounded belted return, multiple rescues and forward departure passed';
+}));
 console.log('cord tests',await page.evaluate(()=>{ui.height.value=45;resetGame();const slack=cordForce(0,S.H),stretch=cordForce(20,10),out=cordForce(20,10,10,0),inward=cordForce(20,10,-10,0);if(slack.T.some(t=>t!==0)||out.T[0]<=stretch.T[0]||inward.T[0]>=stretch.T[0])throw Error('cord force');return 'passed';}));
 console.log('failure scenarios',await page.evaluate(()=>{
   const results=[];for(const h of [45,200])for(const chute of [false,true]){

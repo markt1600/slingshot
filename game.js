@@ -120,7 +120,7 @@ function resetGame(){
     riders: makeRiders(n, ui.belts.checked, ui.chutes.checked), spectatorBodies:[],
     particles:[], stains:[], texts:[],
     settleTimer:0, banner:'', bannerSub:'',
-    confettiDone:false, ambulance:null, shake:0,
+    confettiDone:false, ambulance:null, ambulances:[], casualties:[], shake:0,
     ferris:0, resultDone:false,
   };
   setBodiesH(n*148 + 6);
@@ -327,6 +327,7 @@ function crushSpectators(x,rad){
     const wx=spectWorldX(sp);
     if(Math.abs(wx-x)<rad){
       sp.alive=false; n++;
+      S.casualties.push({x:wx,y:.5,mode:'landed',face:'dead',dmg:{}});
       spawnBlood(wx,0.6,10);
       S.stains.push({x:wx,y:0.1,r:rnd(0.8,1.3)});
       addText(wx,2.2,pick(['SQUISH!','CRUNCH!','OH NO.','☠️']),'#ff4444',15);
@@ -420,7 +421,7 @@ function popBalloon(b){
 }
 function spectatorAt(X,Y){
   return [...DECOR.spect].reverse().find(sp=>{
-    if(!sp.alive&&!sp.body)return false;
+    if((!sp.alive&&!sp.body)||sp.body?.mode==='taken')return false;
     const x=sp.body?W2SX(sp.body.x):sp.x,y=sp.body?W2SY(sp.body.y):W2SY(0)-11;
     return Math.abs(X-x)<12&&Math.abs(Y-y)<15;
   });
@@ -776,9 +777,11 @@ function tick(dt){
       const recovery=S.emptyRecovery;
       recovery.elapsed=Math.min(recovery.duration,recovery.elapsed+dt);
       const u=recovery.elapsed/recovery.duration,ease=u*u*(3-2*u);
-      p.x=lerp(recovery.x,tx,ease);p.y=lerp(recovery.y,ty,ease);
+      const tangent=u*(1-u)*(1-u)*recovery.duration;
+      p.x=lerp(recovery.x,tx,ease)+tangent*(recovery.vx||0);p.y=lerp(recovery.y,ty,ease)+tangent*(recovery.vy||0);
       const rate=6*u*(1-u)/recovery.duration;
-      p.vx=(tx-recovery.x)*rate;p.vy=(ty-recovery.y)*rate;
+      const tangentRate=(1-u)*(1-3*u);
+      p.vx=(tx-recovery.x)*rate+tangentRate*(recovery.vx||0);p.vy=(ty-recovery.y)*rate+tangentRate*(recovery.vy||0);
       S.tension=cordForce(p.x,p.y).T;S.feltG=1;
       if(u>=1){p.vx=p.vy=0;finishRide();}
     }else{
@@ -812,7 +815,7 @@ function tick(dt){
     const n=Math.max(1,Math.ceil(dt/0.008));
     for(let i=0;i<n;i++){
       const f=(i+1)/n;
-      stepRiders(dt/n, lerp(podX0,S.pod.x,f), lerp(podY0,S.pod.y,f));
+      stepRiders(dt/n, lerp(podX0,S.pod.x,f), lerp(podY0,S.pod.y,f),lerp(podX0,S.pod.x,i/n),lerp(podY0,S.pod.y,i/n));
     }
   }
   stepSpectators(dt);
@@ -968,11 +971,12 @@ function applyGDamage(g){
 }
 
 /* -------- flying / landed riders -------- */
-function stepRiders(dt,podX,podY){
+function stepRiders(dt,podX,podY,podStartX,podStartY){
   if(podX===undefined){ podX=S.pod.x; podY=S.pod.y; }
   for(const r of scenePeople()){
     r.armWave+=dt*(r.mode==='flying'?16:6);   // panic flailing is FAST
     if(r.mode!=='flying') continue;
+    r.stepX=r.x;r.stepY=r.y;
     const gravity=GRAV*(r.spectator?cfg.spectatorGravityScale:1);
     r.vy-=gravity*dt;
     // Quadratic aerodynamic drag: small at low speed, increasing toward terminal speed.
@@ -1039,16 +1043,16 @@ function stepRiders(dt,podX,podY){
       }
     }
   }
-  collideRiders(podX,podY);
+  collideRiders(podX,podY,dt,podStartX??podX,podStartY??podY);
 }
 
 /* -------- mid-air collisions: rider↔rider and rider↔pod -------- */
-function collideRiders(podX,podY){
+function collideRiders(podX,podY,dt=0,podStartX=podX,podStartY=podY){
   if(podX===undefined){ podX=S.pod.x; podY=S.pod.y; }
   const fly=scenePeople().filter(r=>r.mode==='flying');
   // collision sizes match what's DRAWN (pod renders at a minimum pixel size when zoomed out)
-  const drawnPodR=cfg.podR;
-  const minD=drawnPodR*0.95+0.5;
+  const drawnPodR=podPxR()/VIEW.s;
+  const minD=drawnPodR+RIDER_SCENE_SCALE/VIEW.s;
   const rTh=1.3;
   // rider vs rider
   for(let i=0;i<fly.length;i++) for(let j=i+1;j<fly.length;j++){
@@ -1071,9 +1075,19 @@ function collideRiders(podX,podY){
   }
   // rider vs the ride itself
   for(const r of fly){
-    if(S.t-(r.ejT||0) < 0.35) continue;   // grace period right after ejection
-    const dx=r.x-podX, dy=r.y-podY, d=Math.hypot(dx,dy)||0.001;
-    if(d<minD){
+    if(!r.spectator&&S.t-(r.ejT||0) < 0.35) continue; // capsule ejections only, never mouse throws
+    let dx=r.x-podX,dy=r.y-podY,d=Math.hypot(dx,dy)||0.001;
+    let contact=d<minD;
+    if(dt>0&&Number.isFinite(r.stepX)){
+      const sx=r.stepX-podStartX,sy=r.stepY-podStartY,mx=dx-sx,my=dy-sy;
+      const a=mx*mx+my*my,b=2*(sx*mx+sy*my),c=sx*sx+sy*sy-minD*minD;
+      const disc=b*b-4*a*c;
+      if(c>=0&&a>1e-12&&disc>=0){
+        const t=(-b-Math.sqrt(disc))/(2*a);
+        if(t>=0&&t<=1){dx=sx+mx*t;dy=sy+my*t;d=Math.hypot(dx,dy)||.001;contact=true;}
+      }
+    }
+    if(contact){
       const nx=dx===0&&dy===0?1:dx/d, ny=dy/d;
       const rel=(r.vx-S.pod.vx)*nx+(r.vy-S.pod.vy)*ny;
       if(rel<0){
@@ -1091,6 +1105,11 @@ function collideRiders(podX,podY){
         r.vr=rnd(-12,12);
         r.x=podX+nx*minD; r.y=Math.max(0.5,podY+ny*minD);
         S.pod.vx-=nx*k*cfg.riderMass/S.mass; S.pod.vy-=ny*k*cfg.riderMass/S.mass;   // pod shudders from the hit
+        // The grounded cage is also a resting surface. Do not keep a supported
+        // body in endless tiny bounces waiting for contact with the terrain.
+        if(podY<=cfg.podR+.1&&-rel<2&&Math.hypot(S.pod.vx,S.pod.vy)<1){
+          r.mode='landed';r.vx=r.vy=r.vr=0;r.rot=Math.PI/2;landingDamage(r,1);
+        }
         const hitV=-rel;
         if(hitV>10){
           landingDamage(r,hitV*0.8);
@@ -1160,6 +1179,10 @@ function detachLimbs(r){
 
 /* -------- settle & finish -------- */
 function checkSettle(dt){
+  if(S.belts&&S.snapped.every(v=>!v)&&S.riders.every(r=>r.mode==='seated')&&S.t-S.tRelease>=8){
+    S.emptyRecovery={x:S.pod.x,y:S.pod.y,vx:S.pod.vx,vy:S.pod.vy,elapsed:0,duration:2};
+    S.phase='winch';updateBanner('winch');return;
+  }
   if(allRidersGrounded() && (!S.snapped[0]||!S.snapped[1])){
     S.emptyRecovery={x:S.pod.x,y:S.pod.y,elapsed:0,duration:1.4};
     S.phase='winch';updateBanner('winch');return;
@@ -1190,12 +1213,6 @@ function finishRide(){
   }
   if(S.crushed) injured+=S.crushed;   // bystanders count too
   if(dead||injured){
-    // ambulance drives to the thrown bodies, not the ride
-    const thrown=S.riders.filter(r=>r.mode==='landed'||r.mode==='flying');
-    let targetX = thrown.length ? thrown.reduce((a,r)=>a+r.x,0)/thrown.length : S.pod.x;
-    targetX = clamp(targetX, -SW/(2*VIEW.s)+22, SW/(2*VIEW.s)-22);
-    S.ambulance={x:S2WX(SW)+10, phase:'in', timer:0, targetX};
-    SFX.siren();
     updateBanner(dead?'carnage':'injured');
   } else {
     spawnConfetti(); fireworks();
@@ -1261,27 +1278,36 @@ function stepParticles(dt){
 }
 
 function stepAmbulance(dt){
-  const a=S.ambulance; if(!a) return;
-  if(a.phase==='in'){ a.x-=102*dt; if(a.x<=a.targetX+7){a.phase='wait';a.timer=0; addText(a.x,4,'WEE-OO WEE-OO 🚨','#fff',15);} }
+  const patients=scenePeople().concat(S.casualties);
+  for(const r of patients){
+    const hurt=r.face==='dead'||Object.values(r.dmg).some(v=>v>0);
+    if(r.rescueAssigned||!hurt||!(r.mode==='landed'||(r.mode==='seated'&&S.phase==='done')))continue;
+    r.rescueAssigned=true;
+    const targetX=clamp(r.mode==='seated'?S.pod.x:r.x,S2WX(40),S2WX(SW-40));
+    S.ambulances.push({x:S2WX(SW+100)+S.ambulances.length*40,phase:'in',timer:0,targetX,patient:r});
+    SFX.siren();
+  }
+  for(const a of S.ambulances){
+  if(a.phase==='in'){ a.x=Math.max(a.targetX+7,a.x-102*dt); if(a.x<=a.targetX+7){a.phase='wait';a.timer=0; addText(a.x,4,'WEE-OO WEE-OO 🚨','#fff',15);} }
   else if(a.phase==='wait'){
+    if(a.patient.mode==='held'||a.patient.mode==='flying'){a.timer=0;continue;}
+    const targetX=clamp(a.patient.mode==='seated'?S.pod.x:a.patient.x,S2WX(40),S2WX(SW-40));
+    if(Math.abs(targetX-a.targetX)>2){a.targetX=targetX;a.phase='relocate';continue;}
     a.timer+=dt;
     if(a.timer>1.6){
       a.phase='out';
-      // load ONLY the hurt — happy survivors (incl. safe parachute landings) stay behind
-      for(const r of S.riders){
-        if(r.mode==='taken') continue;
-        if(r.face==='happy') continue;       // grinning & unhurt → left to walk it off
-        if(r.mode==='landed'||r.mode==='flying') S.stains.push({x:r.x,y:0.1,r:rnd(1.0,1.6)});
-        r.mode='taken';                      // stretchered off (from the ground or the pod)
-      }
-      for(let i=S.particles.length-1;i>=0;i--){
-        const p=S.particles[i];
-        if(p.type==='limb'){ S.stains.push({x:p.x,y:0.1,r:rnd(0.5,0.9)}); S.particles.splice(i,1); }
-      }
+      a.patient.mode='taken';
       addText(a.x,5,'🚑 off to the ER!','#fff',14);
     }
   }
-  else if(a.phase==='out'){ a.x-=120*dt; if(W2SX(a.x)<-120) S.ambulance=null; }
+  else if(a.phase==='relocate'){
+    const dx=a.targetX+7-a.x;a.direction=Math.sign(dx);
+    a.x+=clamp(dx,-102*dt,102*dt);if(Math.abs(dx)<.1){a.phase='wait';a.timer=0;}
+  }
+  else if(a.phase==='out')a.x+=120*dt;
+  }
+  S.ambulances=S.ambulances.filter(a=>!(a.phase==='out'&&W2SX(a.x)>SW+120));
+  S.ambulance=S.ambulances[0]||null;
 }
 
 /* ============================ BANNER & STATS ============================ */
@@ -1344,7 +1370,7 @@ function drawScene(){
   drawFlyingRiders(c);
   drawParticles(c);
   drawTexts(c);
-  drawAmbulance(c);
+  for(const a of S.ambulances)drawAmbulance(c,a);
   if(S.phase==='idle') drawHint(c);
   c.restore();
   drawVignette(c);
@@ -2038,13 +2064,13 @@ function drawPod(c){
   c.fillStyle='#d6d7c4';c.font='.11px system-ui';c.textAlign='center';c.fillText('MEGA  /  01',0,.74);
   c.restore();
 }
-function drawAmbulance(c){
-  const a=S.ambulance;if(!a)return;
-  if(imageReady("ambulance")){drawPhotoAmbulance(c);return;}
+function drawAmbulance(c,a=S.ambulance){
+  if(!a)return;
+  if(imageReady("ambulance")){drawPhotoAmbulance(c,a);return;}
   const X=W2SX(a.x),gy=W2SY(0),moving=a.phase!=='wait';
   c.save();c.translate(X,gy);c.scale(.82,.82);
   // A long-wheelbase van profile. Direction follows travel, wheels remain planted.
-  if(a.phase==='out')c.scale(-1,1);
+  if(a.phase==='out'||a.direction>0)c.scale(-1,1);
   c.fillStyle='rgba(16,24,24,.25)';c.beginPath();c.ellipse(0,0,61,3.3,0,0,TAU);c.fill();
   const bounce=moving?Math.sin(S.t*22)*.23:0;
   c.save();c.translate(0,bounce);
@@ -2206,8 +2232,8 @@ function drawTexturedPerson(c,x,y,s,r,pose){
   if(r.dmg.legs===2)drawWound(c,.32,1.37,.14,2);
   c.restore();
 }
-function drawPhotoAmbulance(c){
-  const a=S.ambulance,X=W2SX(a.x),gy=W2SY(0),out=a.phase==='out';
+function drawPhotoAmbulance(c,a=S.ambulance){
+  const X=W2SX(a.x),gy=W2SY(0),out=a.phase==='out'||a.direction>0;
   const moving=a.phase!=='wait';
   c.save();c.translate(X,gy);c.scale(.82,.82);
   c.fillStyle='rgba(20,25,22,.25)';c.beginPath();c.ellipse(0,0,59,3,0,0,TAU);c.fill();

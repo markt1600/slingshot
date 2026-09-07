@@ -22,6 +22,8 @@ Alternatively run `python3 -m http.server 8080` in this folder and open http://l
 
 Latest visual pass:
 
+- Person/capsule collisions follow the visible cage size and check movement between physics steps. Mouse throws collide immediately. Intact, occupied belted rides finish with a smooth two-second return after eight seconds of motion. Each injured or deceased person gets an individual ambulance; vehicles load only their assigned patient and drive forward toward the right exit.
+
 - After fleeing, spectators mill around the outer midway with short pauses and changing walking destinations. When a rider touches down, three nearby spectators rush over, spread out beside them, and kneel to help once they settle. Helpers return to milling after the ambulance collects the rider; multiple fallen riders receive separate groups.
 
 - Spectators now use jointed side-profile figures with bent elbows, bending knees, alternating footfalls, and a forward running lean. They look toward the ride, occasionally point, briefly startle at an incident, accelerate away, glance back, and brake to watch from the midway edges instead of repeatedly reversing direction with both arms raised.
@@ -53,7 +55,7 @@ Latest visual pass:
 - A 240 Hz fixed simulation step for physics, riders, collisions, and accident timing, independent of display refresh rate. Background tabs do not accumulate catch-up time.
 - Tension-only elastic cords with velocity-dependent damping and mild strain hardening. Slack cords cannot push the capsule.
 - Ground restitution, friction impulses, and a low-speed rest threshold reduce endless micro-bounces.
-- Rider/pod collision impulses conserve linear momentum using actual masses. Collision radii no longer depend on visual enlargement of the capsule.
+- Rider/pod collision impulses conserve linear momentum using actual masses. The collision boundary follows the capsule's displayed cage size, with swept contact detection for fast crossings.
 - Ejected riders inherit current pod velocity; pod mass decreases when a rider leaves. The camera stays at its setup scale throughout the ride, preventing the foreground from shrinking against a fixed background. Extreme trajectories can leave the viewport; telemetry continues to track the capsule.
 - Parachutes inflate over 0.85 seconds and apply quadratic drag toward a roughly 5.5 m/s descent, replacing the old 15 m/s speed limiter.
 - New live speed, altitude, peak altitude, pause, playback speed, aiming preview, keyboard controls, and responsive layout.
